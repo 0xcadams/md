@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test";
 
-import app from "../api/index";
+import app from "../server";
 
 describe("Vercel entrypoint", () => {
   test("serves the bundled demo workspace", async () => {
