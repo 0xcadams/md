@@ -43,8 +43,8 @@ describe("application routes", () => {
     expect(body).toContain('id="theme-selector"');
     expect(body).toContain('<optgroup label="Light">');
     expect(body).toContain('<optgroup label="Dark">');
-    expect(body).toContain('value="github-light-default" selected');
-    expect(body).toContain('value="github-dark-default"');
+    expect(body).toContain('value="github-light-default"');
+    expect(body).toContain('value="github-dark-default" selected');
     expect(body).toContain('rel="icon"');
     expect(body).toContain('href="/__md/assets/logo.svg"');
     expect(body).toContain('src="/__md/assets/logo.svg"');
@@ -66,7 +66,7 @@ describe("application routes", () => {
     const app = await createApp({root: await fixture()});
     const page = await app.request("/src/example.ts");
     const body = await page.text();
-    expect(body).toContain('class="shiki github-light-default"');
+    expect(body).toContain('class="shiki github-dark-default"');
     expect(body).toContain('href="/raw/src/example.ts"');
 
     const raw = await app.request("/raw/src/example.ts");
@@ -89,7 +89,7 @@ describe("application routes", () => {
     const fallback = await app.request("/", {
       headers: {Cookie: "md-code-theme=not-a-theme"},
     });
-    expect(await fallback.text()).toContain('data-code-theme="github-light-default"');
+    expect(await fallback.text()).toContain('data-code-theme="github-dark-default"');
   });
 
   test("does not customize Shiki token colors", async () => {
