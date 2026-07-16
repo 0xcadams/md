@@ -1,0 +1,11 @@
+.git
+.github
+.idea
+.vscode
+node_modules
+public/assets
+demo-files
+plans
+**/*.test.ts
+**/*.test.tsx
+Dockerfile*

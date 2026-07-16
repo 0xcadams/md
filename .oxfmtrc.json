@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "bracketSpacing": false,
+  "ignorePatterns": [".git/**", "dist/**", "node_modules/**", "public/assets/**"],
+  "printWidth": 100,
+  "proseWrap": "preserve",
+  "semi": true,
+  "sortImports": true
+}
