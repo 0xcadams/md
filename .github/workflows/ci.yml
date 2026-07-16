@@ -42,6 +42,12 @@ jobs:
       - name: Build standalone executable
         run: bun run binary
 
+      - name: Smoke standalone executable
+        shell: bash
+        env:
+          BINARY_SUFFIX: ${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: ./dist/md${BINARY_SUFFIX} --version
+
   container:
     name: Container
     permissions:
@@ -55,7 +61,7 @@ jobs:
       - name: Build image
         run: docker build --build-arg VERSION=ci -t md:ci .
 
-      - name: Smoke test read-only image
+      - name: Smoke read-only image
         shell: bash
         run: |
           docker run --rm -d \
