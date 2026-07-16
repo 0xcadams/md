@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "bracketSpacing": false,
-  "ignorePatterns": [".git/**", "dist/**", "node_modules/**", "public/assets/**"],
+  "ignorePatterns": [".git/**", "dist/**", "node_modules/**", "public/assets/**", "vercel.json"],
   "printWidth": 100,
   "proseWrap": "preserve",
   "semi": true,
