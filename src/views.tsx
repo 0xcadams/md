@@ -5,27 +5,63 @@ import type {PropsWithChildren} from "hono/jsx";
 import type {DirectoryEntry} from "./filesystem.js";
 import {encodeUrlPath, formatModified, formatSize} from "./filesystem.js";
 
+function LucideIcon(props: PropsWithChildren<{class?: string}>) {
+  return (
+    <svg
+      class={props.class}
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {props.children}
+    </svg>
+  );
+}
+
 function FileIcon() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16">
-      <path d="M3.75 1.75A1.75 1.75 0 0 1 5.5 0h4.086c.464 0 .909.184 1.237.513l2.664 2.664c.329.328.513.773.513 1.237v9.836A1.75 1.75 0 0 1 12.25 16h-6.5A1.75 1.75 0 0 1 4 14.25V2.5a.25.25 0 0 0-.25-.25h-.5a.75.75 0 0 1 0-1.5h.5Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h6.75a.25.25 0 0 0 .25-.25V5h-2.25A1.25 1.25 0 0 1 9 3.75V1.5H5.5Zm5 .31v1.94c0 .138.112.25.25.25h1.94L10.5 1.81Z" />
-    </svg>
+    <LucideIcon>
+      <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" />
+      <path d="M14 2v5a1 1 0 0 0 1 1h5" />
+    </LucideIcon>
   );
 }
 
 function FolderIcon() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16">
-      <path d="M1.75 1h4.586c.464 0 .909.184 1.237.513L9.06 3H14.25A1.75 1.75 0 0 1 16 4.75v8.5A1.75 1.75 0 0 1 14.25 15H1.75A1.75 1.75 0 0 1 0 13.25V2.75C0 1.784.784 1 1.75 1Zm0 1.5a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25H8.75a.75.75 0 0 1-.53-.22L6.513 2.573a.25.25 0 0 0-.177-.073H1.75Z" />
-    </svg>
+    <LucideIcon>
+      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+    </LucideIcon>
   );
 }
 
-function BrandIcon() {
+function SunIcon() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16">
-      <path d="M2.75 1A1.75 1.75 0 0 0 1 2.75v10.5C1 14.216 1.784 15 2.75 15h10.5A1.75 1.75 0 0 0 15 13.25V2.75A1.75 1.75 0 0 0 13.25 1H2.75ZM2.5 2.75a.25.25 0 0 1 .25-.25h10.5a.25.25 0 0 1 .25.25v10.5a.25.25 0 0 1-.25.25H2.75a.25.25 0 0 1-.25-.25V2.75Zm2.25 2a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-4.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z" />
-    </svg>
+    <LucideIcon class="theme-icon theme-icon-light">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.41 1.41" />
+      <path d="m17.66 17.66 1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.34 17.66-1.41 1.41" />
+      <path d="m19.07 4.93-1.41 1.41" />
+    </LucideIcon>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <LucideIcon class="theme-icon theme-icon-dark">
+      <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+    </LucideIcon>
   );
 }
 
@@ -76,13 +112,13 @@ export function Layout(props: PropsWithChildren<LayoutProps>) {
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <meta name="color-scheme" content="light dark" />
           <title>{props.title}</title>
+          <link rel="icon" href="/__md/assets/logo.svg" type="image/svg+xml" />
           <link rel="stylesheet" href="/__md/assets/styles.css" />
         </head>
         <body>
           <header class="site-header">
             <a class="brand" href="/" aria-label="md home">
-              <BrandIcon />
-              <span>md</span>
+              <img src="/__md/assets/logo.svg" alt="" width="32" height="32" />
             </a>
             <button
               class="theme-toggle"
@@ -91,24 +127,8 @@ export function Layout(props: PropsWithChildren<LayoutProps>) {
               aria-label="Toggle color theme"
               title="Toggle color theme"
             >
-              <svg
-                class="theme-icon theme-icon-light"
-                aria-hidden="true"
-                viewBox="0 0 16 16"
-                width="16"
-                height="16"
-              >
-                <path d="M8 10.5A2.5 2.5 0 1 0 8 5a2.5 2.5 0 0 0 0 5.5ZM8 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0-4a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V.75A.75.75 0 0 1 8 0Zm0 13a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 8 13ZM.75 7.25h1.5a.75.75 0 0 1 0 1.5H.75a.75.75 0 0 1 0-1.5Zm13 0h1.5a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1 0-1.5ZM2.697 1.636a.75.75 0 0 1 1.06 0l1.061 1.06a.75.75 0 0 1-1.06 1.061l-1.061-1.06a.75.75 0 0 1 0-1.061Zm8.485 8.485a.75.75 0 0 1 1.06 0l1.061 1.061a.75.75 0 0 1-1.06 1.06l-1.061-1.06a.75.75 0 0 1 0-1.06Zm2.121-8.485a.75.75 0 0 1 0 1.06l-1.06 1.061a.75.75 0 1 1-1.061-1.06l1.06-1.061a.75.75 0 0 1 1.061 0ZM4.818 10.12a.75.75 0 0 1 0 1.061l-1.06 1.061a.75.75 0 0 1-1.061-1.06l1.06-1.062a.75.75 0 0 1 1.061 0Z" />
-              </svg>
-              <svg
-                class="theme-icon theme-icon-dark"
-                aria-hidden="true"
-                viewBox="0 0 16 16"
-                width="16"
-                height="16"
-              >
-                <path d="M9.598 1.591a.75.75 0 0 1 .785-.175 6.75 6.75 0 1 1-8.967 8.967.75.75 0 0 1 .96-.96 5.25 5.25 0 0 0 7.047-7.047.75.75 0 0 1 .175-.785ZM8.08 3.12a6.75 6.75 0 0 1-5.201 5.201A5.25 5.25 0 1 0 8.08 3.12Z" />
-              </svg>
+              <SunIcon />
+              <MoonIcon />
             </button>
           </header>
           <main class="page-shell">

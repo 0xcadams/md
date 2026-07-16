@@ -1,4 +1,6 @@
-# md
+<p align="center">
+  <img src="logo.svg" alt="md" width="96" height="96">
+</p>
 
 `md` is a minimal server for viewing markdown and code.
 
@@ -58,4 +60,4 @@ bun run binary
 
 ## License
 
-[The Unlicense](LICENSE)
+[Unlicense](LICENSE)

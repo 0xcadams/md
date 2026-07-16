@@ -4,6 +4,7 @@ import {tmpdir} from "node:os";
 import path from "node:path";
 
 import {createApp} from "./app.js";
+import {embeddedAssets} from "./embedded-assets.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -40,7 +41,21 @@ describe("application routes", () => {
     expect(body).toContain('href="/README.md"');
     expect(body).toContain("Demo workspace");
     expect(body).toContain('id="theme-toggle"');
+    expect(body).toContain('rel="icon"');
+    expect(body).toContain('href="/__md/assets/logo.svg"');
+    expect(body).toContain('src="/__md/assets/logo.svg"');
     expect(body.indexOf("Directory contents")).toBeLessThan(body.indexOf("Demo workspace"));
+  });
+
+  test("serves the embedded logo asset", async () => {
+    const app = await createApp({assets: embeddedAssets, root: await fixture()});
+    const response = await app.request("/__md/assets/logo.svg");
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/svg+xml");
+    expect(body).toContain('<title id="title">md</title>');
+    expect(body).not.toContain("<text");
   });
 
   test("renders source files with Shiki and offers raw access", async () => {

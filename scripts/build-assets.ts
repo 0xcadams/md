@@ -1,8 +1,10 @@
-import {rm} from "node:fs/promises";
+import {mkdir, rm} from "node:fs/promises";
 import path from "node:path";
 
 const outputDirectory = path.resolve("public/assets");
 await rm(outputDirectory, {force: true, recursive: true});
+await mkdir(outputDirectory, {recursive: true});
+await Bun.write(path.join(outputDirectory, "logo.svg"), Bun.file("logo.svg"));
 
 const results = await Promise.all([
   Bun.build({
