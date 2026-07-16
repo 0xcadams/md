@@ -172,6 +172,8 @@ function createProcessor(wikiIndex: ReadonlyMap<string, string>, theme: BundledT
     .use(rehypeMermaid)
     .use(rehypeShiki, {
       fallbackLanguage: "text",
+      langs: [],
+      lazy: true,
       theme,
     })
     .use(rehypeStringify);
