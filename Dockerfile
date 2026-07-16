@@ -2,12 +2,13 @@
 
 FROM oven/bun:1.3.14-slim AS dependencies
 WORKDIR /app
-COPY package.json bun.lock ./
+COPY package.json bun.lock bunfig.toml ./
 RUN bun install --frozen-lockfile
 
 FROM dependencies AS build
 ARG VERSION=dev
 COPY .oxfmtrc.json .oxlintrc.json tsconfig.json ./
+COPY logo.svg ./
 COPY scripts ./scripts
 COPY src ./src
 RUN MD_BUILD_VERSION="${VERSION}" bun run binary

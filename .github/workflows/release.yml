@@ -1,30 +1,64 @@
 name: Release
 
 on:
-  push:
-    tags: ["v*.*.*"]
+  workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: write
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+permissions: {}
 
 jobs:
   validate:
+    name: Validate release
+    outputs:
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    permissions:
+      contents: read # Required to check out the repository and inspect existing tags.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
-      - name: Match tag to package version
+      - id: release
+        name: Validate package version
         shell: bash
         run: |
-          EXPECTED="v$(node -p 'require("./package.json").version')"
-          if [ "${GITHUB_REF_NAME}" != "${EXPECTED}" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match package version ${EXPECTED}" >&2
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Releases must be dispatched from main" >&2
             exit 1
           fi
 
+          VERSION="$(node -p 'require("./package.json").version')"
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "package.json version ${VERSION} is not valid semver" >&2
+            exit 1
+          fi
+
+          TAG="v${VERSION}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists" >&2
+            exit 1
+          fi
+
+          PRERELEASE=false
+          if [[ "${VERSION}" == *-* ]]; then
+            PRERELEASE=true
+          fi
+
+          echo "prerelease=${PRERELEASE}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
   binaries:
+    name: Build ${{ matrix.os }} ${{ matrix.arch }}
     needs: validate
+    permissions:
+      contents: read # Required to check out the repository.
     strategy:
       fail-fast: false
       matrix:
@@ -56,7 +90,9 @@ jobs:
             executable: md.exe
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
@@ -67,7 +103,7 @@ jobs:
 
       - name: Build executable
         env:
-          MD_BUILD_VERSION: ${{ github.ref_name }}
+          MD_BUILD_VERSION: ${{ needs.validate.outputs.tag }}
           MD_OUTFILE: dist/${{ matrix.executable }}
           MD_TARGET: ${{ matrix.target }}
         run: bun run binary
@@ -79,12 +115,17 @@ jobs:
           codesign --verify --deep --strict dist/md
 
       - name: Package executable
+        env:
+          RELEASE_ARCH: ${{ matrix.arch }}
+          RELEASE_EXECUTABLE: ${{ matrix.executable }}
+          RELEASE_OS: ${{ matrix.os }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
         shell: bash
         run: |
-          ARCHIVE="md_${GITHUB_REF_NAME}_${{ matrix.os }}_${{ matrix.arch }}"
+          ARCHIVE="md_${RELEASE_TAG}_${RELEASE_OS}_${RELEASE_ARCH}"
           mkdir "${ARCHIVE}"
-          cp "dist/${{ matrix.executable }}" README.md LICENSE "${ARCHIVE}/"
-          if [ "${{ matrix.os }}" = "windows" ]; then
+          cp "dist/${RELEASE_EXECUTABLE}" README.md LICENSE "${ARCHIVE}/"
+          if [ "${RELEASE_OS}" = "windows" ]; then
             zip -r "${ARCHIVE}.zip" "${ARCHIVE}"
           else
             tar czf "${ARCHIVE}.tar.gz" "${ARCHIVE}"
@@ -98,37 +139,40 @@ jobs:
             md_*.zip
 
   image:
+    name: Publish container image
     needs: [validate, binaries]
     permissions:
-      contents: read
-      packages: write
-      id-token: write
+      contents: read # Required to check out the repository.
+      packages: write # Required to publish the image to GHCR.
+      id-token: write # Required to attach build provenance.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: metadata
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+            type=semver,pattern={{version}},value=${{ needs.validate.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.validate.outputs.tag }}
+            type=raw,value=latest,enable=${{ needs.validate.outputs.prerelease == 'false' }}
 
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
-          build-args: VERSION=${{ github.ref_name }}
+          build-args: VERSION=${{ needs.validate.outputs.tag }}
           context: .
           labels: ${{ steps.metadata.outputs.labels }}
           platforms: linux/amd64,linux/arm64
@@ -138,10 +182,11 @@ jobs:
           tags: ${{ steps.metadata.outputs.tags }}
 
   release:
-    needs: [binaries, image]
+    name: Publish GitHub release
+    needs: [validate, binaries, image]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # Required to create the tag and GitHub release.
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -152,13 +197,19 @@ jobs:
         working-directory: artifacts
         run: sha256sum md_* > SHA256SUMS
 
-      - name: Publish GitHub release
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
-        with:
-          files: |
-            artifacts/md_*.tar.gz
-            artifacts/md_*.zip
-            artifacts/SHA256SUMS
-          generate_release_notes: true
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+      - name: Create tag and publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PRERELEASE: ${{ needs.validate.outputs.prerelease }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+        shell: bash
+        run: |
+          OPTIONS=(--generate-notes --target "${GITHUB_SHA}" --title "${RELEASE_TAG}")
+          if [ "${RELEASE_PRERELEASE}" = "true" ]; then
+            OPTIONS+=(--prerelease)
+          fi
+          gh release create "${RELEASE_TAG}" \
+            artifacts/md_*.tar.gz \
+            artifacts/md_*.zip \
+            artifacts/SHA256SUMS \
+            "${OPTIONS[@]}"

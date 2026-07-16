@@ -8,9 +8,9 @@ Point it at a directory and open the URL it prints. Directories look like GitHub
 
 [Try the demo](https://md.cadams.io).
 
-## Run
+## Install
 
-Download a binary from [Releases](https://github.com/0xcadams/md/releases), then:
+[Download and extract the latest release](https://github.com/0xcadams/md/releases/latest) for your system, then run it from the extracted folder:
 
 ```bash
 ./md /path/to/files
