@@ -2,6 +2,7 @@
 node_modules/
 public/assets/
 dist/
+/server.js
 .*.bun-build
 
 # Local binary

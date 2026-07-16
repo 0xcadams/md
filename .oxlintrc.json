@@ -5,7 +5,13 @@
     "perf": "warn",
     "suspicious": "error"
   },
-  "ignorePatterns": ["demo-files/**", "dist/**", "node_modules/**", "public/assets/**"],
+  "ignorePatterns": [
+    "demo-files/**",
+    "dist/**",
+    "node_modules/**",
+    "public/assets/**",
+    "server.js"
+  ],
   "options": {
     "denyWarnings": true,
     "reportUnusedDisableDirectives": "error"
