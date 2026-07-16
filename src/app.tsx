@@ -5,6 +5,7 @@ import {Readable} from "node:stream";
 import {fileURLToPath} from "node:url";
 
 import {Hono, type Context} from "hono";
+import {accepts} from "hono/accepts";
 import {getCookie} from "hono/cookie";
 import {secureHeaders} from "hono/secure-headers";
 
@@ -25,6 +26,7 @@ import {DirectoryPage, MarkdownPage, MessagePage, SourcePage, type ReadmePanel} 
 
 const maximumRenderedFileSize = 5 * 1024 * 1024;
 const assetPrefix = "/__md/assets/";
+const imageResponseVary = "Accept, Sec-Fetch-Dest";
 
 function requestTheme(context: Context) {
   return resolveCodeTheme(getCookie(context, themeCookieName));
@@ -69,7 +71,62 @@ function rawContentType(name: string): string {
   return type;
 }
 
-async function rawFileResponse(request: Request, file: ResolvedFile): Promise<Response> {
+function requestPrefersImage(context: Context, mediaType: string): boolean {
+  const destination = context.req.header("Sec-Fetch-Dest");
+  if (destination !== undefined) return destination.trim().toLowerCase() === "image";
+
+  return (
+    accepts(context, {
+      default: "text/html",
+      header: "Accept",
+      supports: [mediaType, "text/html"],
+      match: (accepted) => {
+        const qualityFor = (candidate: string, allowParameters: boolean): number => {
+          const [type, subtype] = candidate.split("/", 2);
+          let bestQuality = 0;
+          let bestSpecificity = -1;
+          for (const range of accepted) {
+            const [rangeType, rangeSubtype] = range.type.toLowerCase().split("/", 2);
+            if (
+              type === undefined ||
+              subtype === undefined ||
+              rangeType === undefined ||
+              rangeSubtype === undefined
+            ) {
+              continue;
+            }
+            if (
+              !allowParameters &&
+              Object.keys(range.params).some((name) => name.toLowerCase() !== "q")
+            ) {
+              continue;
+            }
+            if (rangeType === "*" && rangeSubtype !== "*") continue;
+            if (rangeType !== "*" && rangeType !== type) continue;
+            if (rangeSubtype !== "*" && rangeSubtype !== subtype) continue;
+
+            const specificity = rangeType === "*" ? 0 : rangeSubtype === "*" ? 1 : 2;
+            if (specificity > bestSpecificity) {
+              bestQuality = range.q;
+              bestSpecificity = specificity;
+            }
+          }
+          return bestQuality;
+        };
+
+        return qualityFor(mediaType, false) > qualityFor("text/html", true)
+          ? mediaType
+          : "text/html";
+      },
+    }) === mediaType
+  );
+}
+
+async function rawFileResponse(
+  request: Request,
+  file: ResolvedFile,
+  options: {contentType?: string; vary?: string} = {},
+): Promise<Response> {
   const name = file.segments.at(-1) ?? "file";
   let opened;
   try {
@@ -85,9 +142,10 @@ async function rawFileResponse(request: Request, file: ResolvedFile): Promise<Re
     "Accept-Ranges": "bytes",
     "Cache-Control": "no-cache",
     "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(name)}`,
-    "Content-Type": rawContentType(name),
+    "Content-Type": options.contentType ?? rawContentType(name),
     "Last-Modified": stats.mtime.toUTCString(),
   });
+  if (options.vary !== undefined) headers.set("Vary", options.vary);
   const range = request.headers.has("if-range") ? null : request.headers.get("range");
   if (range !== null) {
     const match = /^bytes=(\d*)-(\d*)$/.exec(range);
@@ -300,8 +358,27 @@ export async function createApp(options: AppOptions): Promise<Hono> {
     }
 
     const name = resolved.segments.at(-1) ?? "file";
+    const exactContentType = contentType(name);
+    const mediaType = (exactContentType.split(";", 1)[0] ?? exactContentType).toLowerCase();
+    const isImage = mediaType.startsWith("image/");
+    if (isImage) {
+      context.header("Vary", imageResponseVary);
+      if (requestPrefersImage(context, mediaType)) {
+        return await rawFileResponse(context.req.raw, resolved, {
+          contentType: exactContentType,
+          vary: imageResponseVary,
+        });
+      }
+    }
+
     const loaded = await readResolvedFile(resolved, maximumRenderedFileSize);
-    if (loaded === undefined) return await rawFileResponse(context.req.raw, resolved);
+    if (loaded === undefined) {
+      return await rawFileResponse(
+        context.req.raw,
+        resolved,
+        isImage ? {vary: imageResponseVary} : {},
+      );
+    }
     const {contents, stats} = loaded;
 
     if (isMarkdown(name)) {
@@ -318,7 +395,11 @@ export async function createApp(options: AppOptions): Promise<Hono> {
     }
 
     if (!isTextContent(name, contents)) {
-      return await rawFileResponse(context.req.raw, resolved);
+      return await rawFileResponse(
+        context.req.raw,
+        resolved,
+        isImage ? {vary: imageResponseVary} : {},
+      );
     }
     const language = languageForFile(name);
     const highlighted = await markdown.highlight(contents.toString("utf8"), language, theme.id);

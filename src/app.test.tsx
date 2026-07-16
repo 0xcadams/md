@@ -7,13 +7,19 @@ import {createApp} from "./app.js";
 import {embeddedAssets} from "./embedded-assets.js";
 
 const temporaryDirectories: string[] = [];
+const fixtureSvg = '<svg xmlns="http://www.w3.org/2000/svg"><title>CloudZero</title></svg>\n';
 
 async function fixture(): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), "md-app-"));
   temporaryDirectories.push(root);
   await mkdir(path.join(root, "src"));
-  await writeFile(path.join(root, "README.md"), "# Demo workspace\n\nWelcome.");
+  await mkdir(path.join(root, "doc", "assets"), {recursive: true});
+  await writeFile(
+    path.join(root, "README.md"),
+    '# Demo workspace\n\nWelcome.\n\n<img src="./doc/assets/cloudzero.svg" alt="the big picture">',
+  );
   await writeFile(path.join(root, "src", "example.ts"), "export const answer: number = 42\n");
+  await writeFile(path.join(root, "doc", "assets", "cloudzero.svg"), fixtureSvg);
   await writeFile(path.join(root, "data.bin"), Uint8Array.from([0, 1, 2, 3]));
   await writeFile(path.join(root, "page.html"), '<script src="/raw/payload.js"></script>');
   await writeFile(path.join(root, "payload.js"), 'alert("unsafe")');
@@ -49,6 +55,7 @@ describe("application routes", () => {
     expect(body).toContain('rel="icon"');
     expect(body).toContain('href="/__md/assets/logo.svg"');
     expect(body).toContain('src="/__md/assets/logo.svg"');
+    expect(body).toContain('<img src="./doc/assets/cloudzero.svg" alt="the big picture">');
     expect(body.indexOf("Directory contents")).toBeLessThan(body.indexOf("Demo workspace"));
   });
 
@@ -73,6 +80,90 @@ describe("application routes", () => {
     const raw = await app.request("/raw/src/example.ts");
     expect(raw.headers.get("content-type")).toBe("text/plain; charset=utf-8");
     expect(await raw.text()).toBe("export const answer: number = 42\n");
+  });
+
+  test("serves embedded SVG images without changing document navigation", async () => {
+    const app = await createApp({root: await fixture()});
+    const imageHeaders = {
+      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      "Sec-Fetch-Dest": "image",
+    };
+    const image = await app.request("/doc/assets/cloudzero.svg", {headers: imageHeaders});
+
+    expect(image.status).toBe(200);
+    expect(image.headers.get("content-type")).toBe("image/svg+xml");
+    expect(image.headers.get("vary")).toBe("Accept, Sec-Fetch-Dest");
+    expect(image.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(await image.text()).toBe(fixtureSvg);
+
+    const destinationImage = await app.request("/doc/assets/cloudzero.svg", {
+      headers: {
+        Accept: "text/html,image/svg+xml;q=0.1",
+        "Sec-Fetch-Dest": "image",
+      },
+    });
+    expect(destinationImage.headers.get("content-type")).toBe("image/svg+xml");
+
+    const fallback = await app.request("/doc/assets/cloudzero.svg", {
+      headers: {Accept: imageHeaders.Accept},
+    });
+    expect(fallback.headers.get("content-type")).toBe("image/svg+xml");
+    expect(await fallback.text()).toBe(fixtureSvg);
+
+    const navigation = await app.request("/doc/assets/cloudzero.svg", {
+      headers: {
+        Accept: imageHeaders.Accept,
+        "Sec-Fetch-Dest": "document",
+      },
+    });
+    const navigationBody = await navigation.text();
+    expect(navigation.headers.get("content-type")?.startsWith("text/html")).toBe(true);
+    expect(navigation.headers.get("vary")).toBe("Accept, Sec-Fetch-Dest");
+    expect(navigationBody.startsWith("<!doctype html>")).toBe(true);
+    expect(navigationBody).toContain('href="/raw/doc/assets/cloudzero.svg"');
+
+    const fallbackNavigation = await app.request("/doc/assets/cloudzero.svg", {
+      headers: {
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      },
+    });
+    expect(fallbackNavigation.headers.get("content-type")?.startsWith("text/html")).toBe(true);
+
+    const tied = await app.request("/doc/assets/cloudzero.svg", {
+      headers: {Accept: "text/html,image/svg+xml"},
+    });
+    expect(tied.headers.get("content-type")?.startsWith("text/html")).toBe(true);
+
+    const parameterized = await app.request("/doc/assets/cloudzero.svg", {
+      headers: {Accept: "image/svg+xml;profile=foo,text/html;q=0.5"},
+    });
+    expect(parameterized.headers.get("content-type")?.startsWith("text/html")).toBe(true);
+
+    const parameterizedHtml = await app.request("/doc/assets/cloudzero.svg", {
+      headers: {Accept: "text/html;charset=UTF-8,image/svg+xml;q=0.5"},
+    });
+    expect(parameterizedHtml.headers.get("content-type")?.startsWith("text/html")).toBe(true);
+
+    const head = await app.request("/doc/assets/cloudzero.svg", {
+      headers: imageHeaders,
+      method: "HEAD",
+    });
+    expect(head.headers.get("content-type")).toBe("image/svg+xml");
+    expect(head.headers.get("content-length")).toBe(String(Buffer.byteLength(fixtureSvg)));
+    expect(await head.text()).toBe("");
+
+    const range = await app.request("/doc/assets/cloudzero.svg", {
+      headers: {...imageHeaders, Range: "bytes=0-3"},
+    });
+    expect(range.status).toBe(206);
+    expect(range.headers.get("content-type")).toBe("image/svg+xml");
+    expect(await range.text()).toBe("<svg");
+
+    const raw = await app.request("/raw/doc/assets/cloudzero.svg", {headers: imageHeaders});
+    expect(raw.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(raw.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+    expect(await raw.text()).toBe(fixtureSvg);
   });
 
   test("renders the selected Shiki theme from a validated cookie", async () => {

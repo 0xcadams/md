@@ -33,9 +33,11 @@ const answer: number = 42
 
   test("sanitizes embedded HTML", async () => {
     const rendered = await renderer.render(
-      '<details open><summary>Safe</summary>Body</details><script>alert("x")</script>',
+      '<details open><summary>Safe</summary>Body</details><img src="assets/logo.svg" alt="Logo" onerror="alert(1)"><script>alert("x")</script>',
     );
     expect(rendered.html).toContain("<details open>");
+    expect(rendered.html).toContain('<img src="assets/logo.svg" alt="Logo">');
+    expect(rendered.html).not.toContain("onerror");
     expect(rendered.html).not.toContain("<script");
     expect(rendered.html).not.toContain("alert(");
   });
