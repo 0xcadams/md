@@ -3,7 +3,7 @@
   "buildCommand": "bun run build",
   "functions": {
     "server.ts": {
-      "includeFiles": ["demo-files/**", "public/assets/**"],
+      "includeFiles": "{demo-files/**,public/assets/**}",
       "maxDuration": 30
     }
   }

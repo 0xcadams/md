@@ -10,5 +10,13 @@
     "denyWarnings": true,
     "reportUnusedDisableDirectives": "error"
   },
+  "overrides": [
+    {
+      "files": ["src/embedded-assets.ts"],
+      "rules": {
+        "import/default": "off"
+      }
+    }
+  ],
   "plugins": ["import", "typescript", "unicorn"]
 }
