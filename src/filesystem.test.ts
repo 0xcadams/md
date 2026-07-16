@@ -61,10 +61,13 @@ describe("RootFileSystem", () => {
   test("indexes Markdown files for wiki links", async () => {
     const root = await temporaryDirectory();
     await mkdir(path.join(root, "guides"));
+    await mkdir(path.join(root, "node_modules"));
     await writeFile(path.join(root, "guides", "Getting Started.md"), "# Start");
+    await writeFile(path.join(root, "node_modules", "Dependency.md"), "# Dependency");
     const index = await (await RootFileSystem.open(root)).buildWikiIndex();
     expect(index.get("getting started")).toBe("/guides/Getting%20Started.md");
     expect(index.get("getting started.md")).toBe("/guides/Getting%20Started.md");
+    expect(index.has("dependency")).toBe(false);
   });
 });
 

@@ -219,7 +219,14 @@ export class RootFileSystem {
 
       await Promise.all(
         entries.map(async (entry) => {
-          if (entry.name === ".git") return;
+          if (entry.name === ".git" || entry.name === "node_modules") return;
+          if (
+            !entry.isDirectory() &&
+            !entry.isSymbolicLink() &&
+            (!entry.isFile() || !isMarkdown(entry.name))
+          ) {
+            return;
+          }
           try {
             const child = await realpath(path.join(absoluteDirectory, entry.name));
             if (!isWithin(this.root, child) || isGitMetadata(this.root, child)) return;
