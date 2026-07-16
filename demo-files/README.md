@@ -2,6 +2,8 @@
 
 Welcome to the **md** demo!
 
+[View the project on GitHub](https://github.com/0xcadams/md).
+
 ## Features
 
 - GFM tables, task lists, and strikethrough

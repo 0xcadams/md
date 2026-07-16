@@ -27,7 +27,7 @@ const answer: number = 42
     expect(rendered.html).toContain("<table>");
     expect(rendered.html).toContain('type="checkbox"');
     expect(rendered.html).toContain("<del>removed</del>");
-    expect(rendered.html).toContain('class="shiki github-dark-default"');
+    expect(rendered.html).toContain('class="shiki vitesse-dark"');
     expect(rendered.html).not.toContain("--shiki-");
   });
 
@@ -60,7 +60,7 @@ graph TD
 
   test("highlights source files and falls back for unknown languages", async () => {
     expect(await renderer.highlight("const value = 1", "typescript")).toContain(
-      'class="shiki github-dark-default"',
+      'class="shiki vitesse-dark"',
     );
     expect(
       await renderer.highlight("const value = 1", "typescript", "github-light-default"),

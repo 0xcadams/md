@@ -46,13 +46,19 @@ a:hover {
 }
 
 .site-header {
-  align-items: center;
   background: var(--header-bg);
   border-bottom: 1px solid var(--border);
+}
+
+.site-header-inner {
+  align-items: center;
   display: flex;
   height: 64px;
   justify-content: space-between;
+  margin: 0 auto;
+  max-width: 1248px;
   padding: 0 24px;
+  width: 100%;
 }
 
 .brand {
@@ -413,7 +419,7 @@ html[data-theme="dark"] {
 }
 
 @media (max-width: 720px) {
-  .site-header {
+  .site-header-inner {
     height: 56px;
     padding: 0 16px;
   }

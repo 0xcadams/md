@@ -137,10 +137,12 @@ export function Layout(props: PropsWithChildren<LayoutProps>) {
         </head>
         <body>
           <header class="site-header">
-            <a class="brand" href="/" aria-label="md home">
-              <img src="/__md/assets/logo.svg" alt="" width="32" height="32" />
-            </a>
-            <ThemeSelector theme={props.theme} />
+            <div class="site-header-inner">
+              <a class="brand" href="/" aria-label="md home">
+                <img src="/__md/assets/logo.svg" alt="" width="32" height="32" />
+              </a>
+              <ThemeSelector theme={props.theme} />
+            </div>
           </header>
           <main class="page-shell">
             <Breadcrumbs

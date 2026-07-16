@@ -19,7 +19,7 @@ export const codeThemes = [
   {appearance: "dark", id: "vitesse-dark", label: "Vitesse Dark"},
 ] as const satisfies readonly CodeTheme[];
 
-export const defaultCodeTheme: CodeTheme = codeThemes[4];
+export const defaultCodeTheme: CodeTheme = codeThemes[7];
 export const themeCookieName = "md-code-theme";
 
 const themesById = new Map<string, CodeTheme>(codeThemes.map((theme) => [theme.id, theme]));
