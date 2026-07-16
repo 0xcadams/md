@@ -9,7 +9,7 @@ describe("parseConfig", () => {
       help: false,
       host: "127.0.0.1",
       port: 8080,
-      root: "/tmp/docs",
+      root: path.resolve("/tmp/docs"),
       version: false,
     });
   });

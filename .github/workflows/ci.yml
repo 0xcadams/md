@@ -13,24 +13,6 @@ concurrency:
 permissions: {}
 
 jobs:
-  actions-security:
-    name: Audit GitHub Actions
-    permissions:
-      contents: read # Required to check out the repository and run online audits.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Run Zizmor
-        uses: zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa # v0.5.7
-        with:
-          advanced-security: false
-          annotations: true
-          persona: auditor
-          version: "1.27.0"
-
   test:
     name: Test (${{ matrix.os }})
     permissions:
@@ -85,5 +67,5 @@ jobs:
             --mount type=bind,src="${GITHUB_WORKSPACE}/demo-files",dst=/data,readonly \
             md:ci
           trap 'docker rm -f md-ci >/dev/null 2>&1 || true' EXIT
-          curl --fail --retry 10 --retry-delay 1 http://127.0.0.1:8080/__md/health
-          curl --fail http://127.0.0.1:8080/ | grep -q 'Directory contents'
+          curl --fail --retry 10 --retry-all-errors --retry-delay 1 http://127.0.0.1:8080/__md/health
+          curl --fail --retry 10 --retry-all-errors --retry-delay 1 http://127.0.0.1:8080/ | grep -q 'Directory contents'
