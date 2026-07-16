@@ -17,9 +17,9 @@ import {
   readResolvedFile,
   RootFileSystem,
   type ResolvedFile,
-} from "./filesystem";
-import {MarkdownRenderer} from "./markdown";
-import {DirectoryPage, MarkdownPage, MessagePage, SourcePage, type ReadmePanel} from "./views";
+} from "./filesystem.js";
+import {MarkdownRenderer} from "./markdown.js";
+import {DirectoryPage, MarkdownPage, MessagePage, SourcePage, type ReadmePanel} from "./views.js";
 
 const maximumRenderedFileSize = 5 * 1024 * 1024;
 const assetPrefix = "/__md/assets/";

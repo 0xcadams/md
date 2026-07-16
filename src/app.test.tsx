@@ -3,7 +3,7 @@ import {mkdtemp, mkdir, rm, symlink, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import path from "node:path";
 
-import {createApp} from "./app";
+import {createApp} from "./app.js";
 
 const temporaryDirectories: string[] = [];
 

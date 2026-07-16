@@ -2,7 +2,7 @@ import {fileURLToPath} from "node:url";
 
 import {Hono} from "hono";
 
-import {createApp} from "./src/app";
+import {createApp} from "./src/app.js";
 
 const app: Hono = await createApp({
   assetDirectory: fileURLToPath(new URL("./public/assets/", import.meta.url)),

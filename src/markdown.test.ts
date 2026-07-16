@@ -1,6 +1,6 @@
 import {beforeAll, describe, expect, test} from "bun:test";
 
-import {MarkdownRenderer} from "./markdown";
+import {MarkdownRenderer} from "./markdown.js";
 
 let renderer: MarkdownRenderer;
 

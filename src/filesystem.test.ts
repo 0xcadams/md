@@ -10,7 +10,7 @@ import {
   isTextContent,
   languageForFile,
   RootFileSystem,
-} from "./filesystem";
+} from "./filesystem.js";
 
 const temporaryDirectories: string[] = [];
 

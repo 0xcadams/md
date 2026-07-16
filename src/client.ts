@@ -52,7 +52,7 @@ themeButton?.addEventListener("click", () => {
 
 if (diagrams.length > 0) {
   const mermaidModule = new URL("/__md/assets/mermaid.js", window.location.origin).href;
-  void import(mermaidModule).then(async (module: typeof import("./mermaid-client")) => {
+  void import(mermaidModule).then(async (module: typeof import("./mermaid-client.js")) => {
     await module.renderMermaid(diagrams, effectiveTheme());
   });
 }

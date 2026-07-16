@@ -2,8 +2,8 @@
 import {html, raw} from "hono/html";
 import type {PropsWithChildren} from "hono/jsx";
 
-import type {DirectoryEntry} from "./filesystem";
-import {encodeUrlPath, formatModified, formatSize} from "./filesystem";
+import type {DirectoryEntry} from "./filesystem.js";
+import {encodeUrlPath, formatModified, formatSize} from "./filesystem.js";
 
 function FileIcon() {
   return (

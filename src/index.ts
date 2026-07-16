@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 import {readFile} from "node:fs/promises";
 
-import {createApp} from "./app";
-import {parseConfig, usage, UsageError} from "./config";
-import {embeddedAssets} from "./embedded-assets";
+import {createApp} from "./app.js";
+import {parseConfig, usage, UsageError} from "./config.js";
+import {embeddedAssets} from "./embedded-assets.js";
 
 declare const MD_BUILD_VERSION: string | undefined;
 

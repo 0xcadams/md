@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test";
 import path from "node:path";
 
-import {parseConfig, UsageError} from "./config";
+import {parseConfig, UsageError} from "./config.js";
 
 describe("parseConfig", () => {
   test("uses local defaults", () => {
