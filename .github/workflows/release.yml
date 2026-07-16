@@ -222,6 +222,7 @@ jobs:
 
       - name: Create tag and publish GitHub release
         env:
+          GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
           RELEASE_PRERELEASE: ${{ needs.validate.outputs.prerelease }}
           RELEASE_TAG: ${{ needs.validate.outputs.tag }}
