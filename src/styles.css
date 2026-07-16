@@ -1,7 +1,7 @@
 @import "github-markdown-css/github-markdown.css";
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #ffffff;
   --canvas-subtle: #f6f8fa;
   --border: #d1d9e0;
@@ -74,31 +74,59 @@ a:hover {
   flex: 0 0 auto;
 }
 
-.theme-toggle {
+.visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.theme-selector {
   align-items: center;
-  background: transparent;
+  color: var(--fg-muted);
+  display: inline-flex;
+  position: relative;
+}
+
+.theme-selector select {
+  appearance: none;
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--fg);
   cursor: pointer;
-  display: inline-flex;
-  height: 32px;
-  justify-content: center;
-  padding: 0;
-  width: 32px;
+  font: inherit;
+  font-size: 13px;
+  height: 34px;
+  min-width: 190px;
+  padding: 0 32px;
 }
 
-.theme-toggle:hover {
+.theme-selector select:hover {
   background: var(--row-hover);
 }
 
-.theme-toggle:focus-visible {
+.theme-selector select:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
-.theme-icon-dark {
-  display: none;
+.theme-select-icon,
+.theme-select-chevron {
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+}
+
+.theme-select-icon {
+  left: 10px;
+}
+
+.theme-select-chevron {
+  right: 9px;
 }
 
 .page-shell {
@@ -328,32 +356,14 @@ a:hover {
 }
 
 .source-code {
-  background: var(--bg);
   overflow: auto;
 }
 
-.source-code .shiki,
-.markdown-body .shiki {
+.source-code .shiki {
   border-radius: 0;
   margin: 0;
   overflow: auto;
   padding: 16px;
-  filter: saturate(0.72);
-}
-
-.markdown-body .shiki {
-  border-radius: 6px;
-  margin-bottom: 16px;
-}
-
-.source-code code,
-.markdown-body .shiki code {
-  background: transparent;
-  display: block;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  min-width: max-content;
 }
 
 .mermaid {
@@ -385,6 +395,7 @@ a:hover {
 }
 
 html[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #141414;
   --canvas-subtle: #1d1d1f;
   --border: #39393d;
@@ -399,59 +410,6 @@ html[data-theme="dark"] {
   --alert-tip: #8fa496;
   --alert-warning: #aaa087;
   --alert-caution: #aa8c8e;
-}
-
-html[data-theme="dark"] .theme-icon-light {
-  display: none;
-}
-
-html[data-theme="dark"] .theme-icon-dark {
-  display: block;
-}
-
-html[data-theme="dark"] .shiki,
-html[data-theme="dark"] .shiki span {
-  background-color: var(--shiki-dark-bg) !important;
-  color: var(--shiki-dark) !important;
-  font-style: var(--shiki-dark-font-style) !important;
-  font-weight: var(--shiki-dark-font-weight) !important;
-  text-decoration: var(--shiki-dark-text-decoration) !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  html:not([data-theme="light"]) {
-    --bg: #141414;
-    --canvas-subtle: #1d1d1f;
-    --border: #39393d;
-    --border-muted: #29292c;
-    --fg: #e7e7e7;
-    --fg-muted: #9b9b9f;
-    --header-bg: #101010;
-    --link: #58a6ff;
-    --focus: #58a6ff;
-    --row-hover: #222225;
-    --alert-note: #a7a9ac;
-    --alert-tip: #8fa496;
-    --alert-warning: #aaa087;
-    --alert-caution: #aa8c8e;
-  }
-
-  html:not([data-theme="light"]) .theme-icon-light {
-    display: none;
-  }
-
-  html:not([data-theme="light"]) .theme-icon-dark {
-    display: block;
-  }
-
-  html:not([data-theme="light"]) .shiki,
-  html:not([data-theme="light"]) .shiki span {
-    background-color: var(--shiki-dark-bg) !important;
-    color: var(--shiki-dark) !important;
-    font-style: var(--shiki-dark-font-style) !important;
-    font-weight: var(--shiki-dark-font-weight) !important;
-    text-decoration: var(--shiki-dark-text-decoration) !important;
-  }
 }
 
 @media (max-width: 720px) {
@@ -485,5 +443,10 @@ html[data-theme="dark"] .shiki span {
 
   .file-meta {
     display: none;
+  }
+
+  .theme-selector select {
+    min-width: 0;
+    width: 168px;
   }
 }

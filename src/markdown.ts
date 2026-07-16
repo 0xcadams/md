@@ -17,10 +17,12 @@ import rehypeStringify from "rehype-stringify";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
-import {codeToHtml, type BundledLanguage} from "shiki";
+import {codeToHtml, type BundledLanguage, type BundledTheme} from "shiki";
 import {unified} from "unified";
 import {visit} from "unist-util-visit";
 import type {VFile} from "vfile";
+
+import {defaultCodeTheme} from "./themes.js";
 
 const alertKinds = new Set(["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]);
 
@@ -152,50 +154,65 @@ export interface RenderedMarkdown {
   html: string;
 }
 
-export class MarkdownRenderer {
-  private readonly processor;
+function createProcessor(wikiIndex: ReadonlyMap<string, string>, theme: BundledTheme) {
+  return unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkAlerts)
+    .use(remarkWikiLinks(wikiIndex))
+    .use(remarkRehype, {allowDangerousHtml: true})
+    .use(rehypeRaw)
+    .use(rehypeSanitize, sanitizeSchema)
+    .use(rehypeSlug)
+    .use(rehypeAutolinkHeadings, {
+      behavior: "prepend",
+      content: {type: "text", value: "#"},
+      properties: {ariaLabel: "Permalink", className: ["heading-anchor"]},
+    })
+    .use(rehypeMermaid)
+    .use(rehypeShiki, {
+      fallbackLanguage: "text",
+      theme,
+    })
+    .use(rehypeStringify);
+}
 
-  constructor(wikiIndex: ReadonlyMap<string, string>) {
-    this.processor = unified()
-      .use(remarkParse)
-      .use(remarkGfm)
-      .use(remarkAlerts)
-      .use(remarkWikiLinks(wikiIndex))
-      .use(remarkRehype, {allowDangerousHtml: true})
-      .use(rehypeRaw)
-      .use(rehypeSanitize, sanitizeSchema)
-      .use(rehypeSlug)
-      .use(rehypeAutolinkHeadings, {
-        behavior: "prepend",
-        content: {type: "text", value: "#"},
-        properties: {ariaLabel: "Permalink", className: ["heading-anchor"]},
-      })
-      .use(rehypeMermaid)
-      .use(rehypeShiki, {
-        defaultColor: false,
-        fallbackLanguage: "text",
-        themes: {dark: "github-dark", light: "github-light"},
-      })
-      .use(rehypeStringify);
+export class MarkdownRenderer {
+  private readonly processors = new Map<BundledTheme, ReturnType<typeof createProcessor>>();
+
+  constructor(private readonly wikiIndex: ReadonlyMap<string, string>) {}
+
+  private processor(theme: BundledTheme): ReturnType<typeof createProcessor> {
+    let processor = this.processors.get(theme);
+    if (processor === undefined) {
+      processor = createProcessor(this.wikiIndex, theme);
+      this.processors.set(theme, processor);
+    }
+    return processor;
   }
 
-  async render(source: string): Promise<RenderedMarkdown> {
-    const result = await this.processor.process(source);
+  async render(
+    source: string,
+    theme: BundledTheme = defaultCodeTheme.id,
+  ): Promise<RenderedMarkdown> {
+    const result = await this.processor(theme).process(source);
     return {hasMermaid: result.data.hasMermaid ?? false, html: String(result)};
   }
 
-  async highlight(source: string, language: string): Promise<string> {
+  async highlight(
+    source: string,
+    language: string,
+    theme: BundledTheme = defaultCodeTheme.id,
+  ): Promise<string> {
     try {
       return await codeToHtml(source, {
-        defaultColor: false,
         lang: language as BundledLanguage,
-        themes: {dark: "github-dark", light: "github-light"},
+        theme,
       });
     } catch {
       return codeToHtml(source, {
-        defaultColor: false,
         lang: "text",
-        themes: {dark: "github-dark", light: "github-light"},
+        theme,
       });
     }
   }

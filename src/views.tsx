@@ -4,6 +4,7 @@ import type {PropsWithChildren} from "hono/jsx";
 
 import type {DirectoryEntry} from "./filesystem.js";
 import {encodeUrlPath, formatModified, formatSize} from "./filesystem.js";
+import {codeThemes, type CodeTheme, type ThemeAppearance} from "./themes.js";
 
 function LucideIcon(props: PropsWithChildren<{class?: string}>) {
   return (
@@ -41,27 +42,51 @@ function FolderIcon() {
   );
 }
 
-function SunIcon() {
+function PaletteIcon() {
   return (
-    <LucideIcon class="theme-icon theme-icon-light">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2" />
-      <path d="M12 20v2" />
-      <path d="m4.93 4.93 1.41 1.41" />
-      <path d="m17.66 17.66 1.41 1.41" />
-      <path d="M2 12h2" />
-      <path d="M20 12h2" />
-      <path d="m6.34 17.66-1.41 1.41" />
-      <path d="m19.07 4.93-1.41 1.41" />
+    <LucideIcon class="theme-select-icon">
+      <path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z" />
+      <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+      <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+      <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+      <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
     </LucideIcon>
   );
 }
 
-function MoonIcon() {
+function ChevronDownIcon() {
   return (
-    <LucideIcon class="theme-icon theme-icon-dark">
-      <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+    <LucideIcon class="theme-select-chevron">
+      <path d="m6 9 6 6 6-6" />
     </LucideIcon>
+  );
+}
+
+function ThemeOptions(props: {appearance: ThemeAppearance; selected: CodeTheme}) {
+  return (
+    <optgroup label={props.appearance === "light" ? "Light" : "Dark"}>
+      {codeThemes
+        .filter((theme) => theme.appearance === props.appearance)
+        .map((theme) => (
+          <option value={theme.id} selected={theme.id === props.selected.id}>
+            {theme.label}
+          </option>
+        ))}
+    </optgroup>
+  );
+}
+
+function ThemeSelector(props: {theme: CodeTheme}) {
+  return (
+    <label class="theme-selector">
+      <span class="visually-hidden">Syntax theme</span>
+      <PaletteIcon />
+      <select id="theme-selector" name="theme">
+        <ThemeOptions appearance="light" selected={props.theme} />
+        <ThemeOptions appearance="dark" selected={props.theme} />
+      </select>
+      <ChevronDownIcon />
+    </label>
   );
 }
 
@@ -93,6 +118,7 @@ interface LayoutProps {
   directory: boolean;
   rootName: string;
   segments: readonly string[];
+  theme: CodeTheme;
   title: string;
 }
 
@@ -100,17 +126,11 @@ export function Layout(props: PropsWithChildren<LayoutProps>) {
   return (
     <>
       {html`<!doctype html>`}
-      <html
-        lang="en"
-        data-color-mode="auto"
-        data-dark-theme="dark"
-        data-light-theme="light"
-        data-theme="auto"
-      >
+      <html lang="en" data-code-theme={props.theme.id} data-theme={props.theme.appearance}>
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <meta name="color-scheme" content="light dark" />
+          <meta name="color-scheme" content={props.theme.appearance} />
           <title>{props.title}</title>
           <link rel="icon" href="/__md/assets/logo.svg" type="image/svg+xml" />
           <link rel="stylesheet" href="/__md/assets/styles.css" />
@@ -120,16 +140,7 @@ export function Layout(props: PropsWithChildren<LayoutProps>) {
             <a class="brand" href="/" aria-label="md home">
               <img src="/__md/assets/logo.svg" alt="" width="32" height="32" />
             </a>
-            <button
-              class="theme-toggle"
-              id="theme-toggle"
-              type="button"
-              aria-label="Toggle color theme"
-              title="Toggle color theme"
-            >
-              <SunIcon />
-              <MoonIcon />
-            </button>
+            <ThemeSelector theme={props.theme} />
           </header>
           <main class="page-shell">
             <Breadcrumbs
@@ -161,11 +172,18 @@ export function DirectoryPage(props: {
   readme?: ReadmePanel | undefined;
   rootName: string;
   segments: readonly string[];
+  theme: CodeTheme;
 }) {
   const title = props.segments.at(-1) ?? props.rootName;
   const hasRows = props.entries.length > 0 || props.segments.length > 0;
   return (
-    <Layout title={`${title} - md`} rootName={props.rootName} segments={props.segments} directory>
+    <Layout
+      title={`${title} - md`}
+      rootName={props.rootName}
+      segments={props.segments}
+      theme={props.theme}
+      directory
+    >
       <section class="file-list" aria-label="Directory contents">
         <div class="list-header">
           <span>
@@ -233,12 +251,14 @@ export function MarkdownPage(props: {
   name: string;
   rootName: string;
   segments: readonly string[];
+  theme: CodeTheme;
 }) {
   return (
     <Layout
       title={props.name}
       rootName={props.rootName}
       segments={props.segments}
+      theme={props.theme}
       directory={false}
     >
       <section class="document-panel">
@@ -262,12 +282,14 @@ export function SourcePage(props: {
   rootName: string;
   segments: readonly string[];
   size: number;
+  theme: CodeTheme;
 }) {
   return (
     <Layout
       title={props.name}
       rootName={props.rootName}
       segments={props.segments}
+      theme={props.theme}
       directory={false}
     >
       <section class="document-panel code-panel">
@@ -292,6 +314,7 @@ export function MessagePage(props: {
   rootName: string;
   segments?: readonly string[];
   status: number;
+  theme: CodeTheme;
   title: string;
 }) {
   return (
@@ -299,6 +322,7 @@ export function MessagePage(props: {
       title={props.title}
       rootName={props.rootName}
       segments={props.segments ?? []}
+      theme={props.theme}
       directory={false}
     >
       <section class="message-panel">

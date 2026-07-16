@@ -36,7 +36,7 @@ docker run --rm \
 
 - GitHub Flavored Markdown and Shiki syntax highlighting
 - GitHub-style directory listings with rendered READMEs
-- Light and dark themes
+- Selectable light and dark Shiki themes
 - Mermaid, wiki links, and GitHub alerts
 - Raw files at `/raw/<path>`
 - Read-only filesystem confinement

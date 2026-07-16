@@ -27,8 +27,8 @@ const answer: number = 42
     expect(rendered.html).toContain("<table>");
     expect(rendered.html).toContain('type="checkbox"');
     expect(rendered.html).toContain("<del>removed</del>");
-    expect(rendered.html).toContain('class="shiki shiki-themes');
-    expect(rendered.html).toContain("--shiki-dark");
+    expect(rendered.html).toContain('class="shiki github-light-default"');
+    expect(rendered.html).not.toContain("--shiki-");
   });
 
   test("sanitizes embedded HTML", async () => {
@@ -59,7 +59,12 @@ graph TD
   });
 
   test("highlights source files and falls back for unknown languages", async () => {
-    expect(await renderer.highlight("const value = 1", "typescript")).toContain("--shiki-dark");
+    expect(await renderer.highlight("const value = 1", "typescript")).toContain(
+      'class="shiki github-light-default"',
+    );
+    expect(
+      await renderer.highlight("const value = 1", "typescript", "github-dark-default"),
+    ).toContain('class="shiki github-dark-default"');
     expect(await renderer.highlight("plain", "not-a-language")).toContain("plain");
   });
 });

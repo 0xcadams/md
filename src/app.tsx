@@ -4,7 +4,8 @@ import path from "node:path";
 import {Readable} from "node:stream";
 import {fileURLToPath} from "node:url";
 
-import {Hono} from "hono";
+import {Hono, type Context} from "hono";
+import {getCookie} from "hono/cookie";
 import {secureHeaders} from "hono/secure-headers";
 
 import {
@@ -19,10 +20,15 @@ import {
   type ResolvedFile,
 } from "./filesystem.js";
 import {MarkdownRenderer} from "./markdown.js";
+import {resolveCodeTheme, themeCookieName} from "./themes.js";
 import {DirectoryPage, MarkdownPage, MessagePage, SourcePage, type ReadmePanel} from "./views.js";
 
 const maximumRenderedFileSize = 5 * 1024 * 1024;
 const assetPrefix = "/__md/assets/";
+
+function requestTheme(context: Context) {
+  return resolveCodeTheme(getCookie(context, themeCookieName));
+}
 
 export interface AppOptions {
   assetDirectory?: string;
@@ -191,6 +197,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
         message="The file could not be rendered."
         rootName={files.name}
         status={500}
+        theme={requestTheme(context)}
         title="Internal server error"
       />,
       500,
@@ -230,6 +237,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
           message="The requested raw file does not exist inside the mounted directory."
           rootName={files.name}
           status={404}
+          theme={requestTheme(context)}
           title="Not found"
         />,
         404,
@@ -240,6 +248,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
 
   app.on(["GET", "HEAD"], "*", async (context) => {
     const url = new URL(context.req.url);
+    const theme = requestTheme(context);
     const resolved = await files.resolvePathname(url.pathname);
     if (resolved === undefined) {
       return context.html(
@@ -247,6 +256,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
           message="The requested path does not exist inside the mounted directory."
           rootName={files.name}
           status={404}
+          theme={theme}
           title="Not found"
         />,
         404,
@@ -269,7 +279,10 @@ export async function createApp(options: AppOptions): Promise<Hono> {
         if (readmeFile !== undefined) {
           const loadedReadme = await readResolvedFile(readmeFile, maximumRenderedFileSize);
           if (loadedReadme !== undefined) {
-            const rendered = await markdown.render(loadedReadme.contents.toString("utf8"));
+            const rendered = await markdown.render(
+              loadedReadme.contents.toString("utf8"),
+              theme.id,
+            );
             readme = {html: rendered.html, name: readmeEntry.name, url: readmeEntry.url};
           }
         }
@@ -281,6 +294,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
           readme={readme}
           rootName={files.name}
           segments={resolved.segments}
+          theme={theme}
         />,
       );
     }
@@ -291,13 +305,14 @@ export async function createApp(options: AppOptions): Promise<Hono> {
     const {contents, stats} = loaded;
 
     if (isMarkdown(name)) {
-      const rendered = await markdown.render(contents.toString("utf8"));
+      const rendered = await markdown.render(contents.toString("utf8"), theme.id);
       return context.html(
         <MarkdownPage
           html={rendered.html}
           name={name}
           rootName={files.name}
           segments={resolved.segments}
+          theme={theme}
         />,
       );
     }
@@ -306,7 +321,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
       return await rawFileResponse(context.req.raw, resolved);
     }
     const language = languageForFile(name);
-    const highlighted = await markdown.highlight(contents.toString("utf8"), language);
+    const highlighted = await markdown.highlight(contents.toString("utf8"), language, theme.id);
     return context.html(
       <SourcePage
         highlighted={highlighted}
@@ -315,6 +330,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
         rootName={files.name}
         segments={resolved.segments}
         size={stats.size}
+        theme={theme}
       />,
     );
   });

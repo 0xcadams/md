@@ -40,7 +40,11 @@ describe("application routes", () => {
     expect(body).toContain('href="/src/"');
     expect(body).toContain('href="/README.md"');
     expect(body).toContain("Demo workspace");
-    expect(body).toContain('id="theme-toggle"');
+    expect(body).toContain('id="theme-selector"');
+    expect(body).toContain('<optgroup label="Light">');
+    expect(body).toContain('<optgroup label="Dark">');
+    expect(body).toContain('value="github-light-default" selected');
+    expect(body).toContain('value="github-dark-default"');
     expect(body).toContain('rel="icon"');
     expect(body).toContain('href="/__md/assets/logo.svg"');
     expect(body).toContain('src="/__md/assets/logo.svg"');
@@ -62,12 +66,40 @@ describe("application routes", () => {
     const app = await createApp({root: await fixture()});
     const page = await app.request("/src/example.ts");
     const body = await page.text();
-    expect(body).toContain('class="shiki shiki-themes');
+    expect(body).toContain('class="shiki github-light-default"');
     expect(body).toContain('href="/raw/src/example.ts"');
 
     const raw = await app.request("/raw/src/example.ts");
     expect(raw.headers.get("content-type")).toBe("text/plain; charset=utf-8");
     expect(await raw.text()).toBe("export const answer: number = 42\n");
+  });
+
+  test("renders the selected Shiki theme from a validated cookie", async () => {
+    const app = await createApp({root: await fixture()});
+    const selected = await app.request("/src/example.ts", {
+      headers: {Cookie: "md-code-theme=catppuccin-mocha"},
+    });
+    const selectedBody = await selected.text();
+
+    expect(selectedBody).toContain('data-code-theme="catppuccin-mocha"');
+    expect(selectedBody).toContain('data-theme="dark"');
+    expect(selectedBody).toContain('class="shiki catppuccin-mocha"');
+    expect(selectedBody).toContain('value="catppuccin-mocha" selected');
+
+    const fallback = await app.request("/", {
+      headers: {Cookie: "md-code-theme=not-a-theme"},
+    });
+    expect(await fallback.text()).toContain('data-code-theme="github-light-default"');
+  });
+
+  test("does not customize Shiki token colors", async () => {
+    const app = await createApp({assets: embeddedAssets, root: await fixture()});
+    const response = await app.request("/__md/assets/styles.css");
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).not.toContain("saturate(");
+    expect(body).not.toContain("--shiki-");
   });
 
   test("serves active raw files as sandboxed plain text", async () => {
