@@ -29,7 +29,7 @@ docker run --rm \
   --security-opt=no-new-privileges \
   -p 8080:8080 \
   --mount type=bind,src="$PWD",dst=/data,readonly \
-  ghcr.io/0xcadams/md@sha256:2246082681ea462e827a4b675b1543f6d128310a303eadd16e2f2d95d76b94e5
+  ghcr.io/0xcadams/md@sha256:0047b73835b9a3be32961d91bdbf880698cc88acc09a0bb7fbdf989f6c3d2e18
 ```
 
 ## Features
