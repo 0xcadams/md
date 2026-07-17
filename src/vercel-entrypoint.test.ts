@@ -13,7 +13,7 @@ describe("Vercel entrypoint", () => {
     expect(body).toContain('href="/example.ts"');
     expect(body).toContain('class="repo-toolbar"');
     expect(body).toContain('>main</span><span class="item-count">');
-    expect(body).toContain("Add Git-aware directory listings");
+    expect(body).toContain("feat: add Git-aware directory listings");
     expect(body).toContain("Last commit");
     expect(body).toContain("5 changes");
     expect(body).toContain('aria-label="Staged: modified"');
@@ -28,7 +28,7 @@ describe("Vercel entrypoint", () => {
     const body = await response.text();
 
     expect(response.status).toBe(200);
-    expect(body).toContain("Add the getting started guide");
+    expect(body).toContain("docs: add the getting started guide");
     expect(body).toContain("1 change");
     expect(body).toContain('href="/guides/getting-started.md"');
     expect(body).toContain('aria-label="Staged: modified"');

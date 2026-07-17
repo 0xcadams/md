@@ -7,12 +7,12 @@ function commit(hash: string, summary: string, date: string): GitCommit {
 }
 
 const commits = new Map<string, GitCommit>([
-  ["", commit(head, "Add Git-aware directory listings", "2026-07-17T01:04:06Z")],
+  ["", commit(head, "feat: add Git-aware directory listings", "2026-07-17T01:04:06Z")],
   [
     "README.md",
     commit(
       "72beae6a6e9102f30ff0a726bc35f2c89401c549",
-      "Document the demo workspace",
+      "docs: document the demo workspace",
       "2026-07-16T20:18:00Z",
     ),
   ],
@@ -20,7 +20,7 @@ const commits = new Map<string, GitCommit>([
     "example.ts",
     commit(
       "3c5b947412bc354343fd31a51fc33c4f16b6ddeb",
-      "Add a typed source example",
+      "feat: add a typed source example",
       "2026-07-16T19:42:00Z",
     ),
   ],
@@ -28,7 +28,7 @@ const commits = new Map<string, GitCommit>([
     "guides",
     commit(
       "cc347c674bb90fd5ef8799f6216f2fa75ffcf0b4",
-      "Add the getting started guide",
+      "docs: add the getting started guide",
       "2026-07-16T18:55:00Z",
     ),
   ],
@@ -36,7 +36,7 @@ const commits = new Map<string, GitCommit>([
     "guides/getting-started.md",
     commit(
       "cc347c674bb90fd5ef8799f6216f2fa75ffcf0b4",
-      "Add the getting started guide",
+      "docs: add the getting started guide",
       "2026-07-16T18:55:00Z",
     ),
   ],
@@ -44,7 +44,7 @@ const commits = new Map<string, GitCommit>([
     "notes",
     commit(
       "57101a9ec9d61b67684396e9b69fd14067c86a02",
-      "Expand the linked notes",
+      "docs: expand the linked notes",
       "2026-07-16T17:30:00Z",
     ),
   ],
@@ -52,7 +52,7 @@ const commits = new Map<string, GitCommit>([
     "notes/deep-notes.md",
     commit(
       "57101a9ec9d61b67684396e9b69fd14067c86a02",
-      "Expand the linked notes",
+      "docs: expand the linked notes",
       "2026-07-16T17:30:00Z",
     ),
   ],
@@ -60,7 +60,7 @@ const commits = new Map<string, GitCommit>([
     "notes.md",
     commit(
       "0fd6e0bf9a1321659b7903f97278f047afd21983",
-      "Showcase wiki links",
+      "docs: showcase wiki links",
       "2026-07-16T16:15:00Z",
     ),
   ],
