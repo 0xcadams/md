@@ -125,6 +125,9 @@ describe("GitRepository", () => {
       "-m",
       "initial commit",
     ]);
+    await git(root, ["remote", "add", "origin", "git@github.com:octo-org/example.git"]);
+    await git(root, ["branch", "release"]);
+    await git(root, ["tag", "v1"]);
 
     await writeFile(path.join(root, "README.md"), "# Modified\n");
     await writeFile(path.join(root, "staged.ts"), "export const staged = 1;\n");
@@ -149,8 +152,14 @@ describe("GitRepository", () => {
     );
 
     expect(info?.branch).toBe("main");
+    expect(info?.branchCount).toBe(2);
+    expect(info?.commit?.author).toBe("md test");
     expect(info?.detached).toBe(false);
     expect(info?.commit?.summary).toBe("initial commit");
+    expect(info?.commitCount).toBe(1);
+    expect(info?.repositoryUrl).toBe("https://github.com/octo-org/example");
+    expect(info?.tagCount).toBe(1);
+    expect(info?.entries.get("README.md")?.repositoryPath).toBe("README.md");
     expect(info?.entries.get("README.md")?.commit?.summary).toBe("initial commit");
     expect(info?.entries.get("src")?.commit?.summary).toBe("initial commit");
     expect(info?.entries.get("untracked.txt")?.commit).toBeUndefined();
@@ -169,6 +178,8 @@ describe("GitRepository", () => {
     ]);
 
     await git(root, ["add", "README.md"]);
+    await git(root, ["remote", "set-url", "origin", "https://gitlab.com/octo-org/example.git"]);
+    await git(root, ["remote", "add", "upstream", "https://github.com/octo-org/upstream.git"]);
     const refreshed = await repository!.directoryInfo(
       [],
       [{isDirectory: false, name: "README.md"}],
@@ -176,6 +187,19 @@ describe("GitRepository", () => {
     expect(refreshed?.entries.get("README.md")?.changes).toEqual([
       {path: "README.md", staged: "modified"},
     ]);
+    expect(refreshed?.repositoryUrl).toBe("https://github.com/octo-org/upstream");
+
+    await git(root, [
+      "remote",
+      "set-url",
+      "upstream",
+      "ssh://git@gitlab.com/octo-org/upstream.git",
+    ]);
+    const withoutGitHub = await repository!.directoryInfo(
+      [],
+      [{isDirectory: false, name: "README.md"}],
+    );
+    expect(withoutGitHub?.repositoryUrl).toBeUndefined();
 
     await writeFile(path.join(root, "src", "example.ts"), "export const value = 2;\n");
     const subdirectoryRepository = await GitRepository.open(path.join(root, "src"));
@@ -185,6 +209,7 @@ describe("GitRepository", () => {
     );
     expect(subdirectory?.commit?.summary).toBe("initial commit");
     expect(subdirectory?.changes).toEqual([{path: "example.ts", unstaged: "modified"}]);
+    expect(subdirectory?.entries.get("example.ts")?.repositoryPath).toBe("src/example.ts");
     expect(subdirectory?.entries.get("example.ts")?.commit?.summary).toBe("initial commit");
 
     await writeFile(path.join(root, ".gitattributes"), "*.md filter=evil\n");

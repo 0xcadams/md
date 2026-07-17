@@ -56,12 +56,57 @@ function BranchIcon() {
   );
 }
 
+function TagIcon() {
+  return (
+    <LucideIcon>
+      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+    </LucideIcon>
+  );
+}
+
 function CommitIcon() {
   return (
     <LucideIcon>
       <circle cx="12" cy="12" r="3" />
       <line x1="3" x2="9" y1="12" y2="12" />
       <line x1="15" x2="21" y1="12" y2="12" />
+    </LucideIcon>
+  );
+}
+
+function HistoryIcon() {
+  return (
+    <LucideIcon>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l4 2" />
+    </LucideIcon>
+  );
+}
+
+function CodeIcon() {
+  return (
+    <LucideIcon>
+      <path d="m16 18 6-6-6-6" />
+      <path d="m8 6-6 6 6 6" />
+    </LucideIcon>
+  );
+}
+
+function CopyIcon(props: {class: string}) {
+  return (
+    <LucideIcon class={props.class}>
+      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </LucideIcon>
+  );
+}
+
+function CheckIcon(props: {class: string}) {
+  return (
+    <LucideIcon class={props.class}>
+      <path d="m20 6-11 11-5-5" />
     </LucideIcon>
   );
 }
@@ -126,6 +171,7 @@ function ThemeSelector(props: {theme: CodeTheme}) {
 }
 
 function Breadcrumbs(props: {directory: boolean; rootName: string; segments: readonly string[]}) {
+  const displayedPath = props.segments.join("/");
   return (
     <nav class="breadcrumbs" aria-label="Breadcrumb">
       <a class="repo-name" href="/">
@@ -145,6 +191,20 @@ function Breadcrumbs(props: {directory: boolean; rootName: string; segments: rea
           </>
         );
       })}
+      {displayedPath === "" ? null : (
+        <button
+          type="button"
+          class="button copy-path-button"
+          data-copy-path={displayedPath}
+          aria-label="Copy path"
+          title="Copy path"
+        >
+          <div>
+            <CopyIcon class="copy-path-copy-icon" />
+            <CheckIcon class="copy-path-check-icon" />
+          </div>
+        </button>
+      )}
     </nav>
   );
 }
@@ -218,6 +278,20 @@ function RelativeDate(props: {date: Date}) {
     <time dateTime={props.date.toISOString()} title={props.date.toISOString()}>
       {formatRelativeDate(props.date)}
     </time>
+  );
+}
+
+function githubPage(repositoryUrl: string, page: string, value?: string): string {
+  return `${repositoryUrl}/${page}${value === undefined ? "" : `/${encodeURIComponent(value)}`}`;
+}
+
+function RepositoryStat(props: PropsWithChildren<{href: string | undefined}>) {
+  return props.href === undefined ? (
+    <span class="repo-stat">{props.children}</span>
+  ) : (
+    <a class="repo-stat" href={props.href}>
+      {props.children}
+    </a>
   );
 }
 
@@ -359,15 +433,57 @@ function EntryChanges(props: {changes: readonly GitChange[]; directory: boolean}
   );
 }
 
-function CommitSummary(props: {commit: GitCommit}) {
+function CommitSummary(props: {commit: GitCommit; repositoryUrl: string | undefined}) {
+  const url =
+    props.repositoryUrl === undefined
+      ? undefined
+      : githubPage(props.repositoryUrl, "commit", props.commit.hash);
   return (
     <>
-      <span class="commit-summary" title={props.commit.summary}>
-        {props.commit.summary}
+      <span class="commit-author">{props.commit.author}</span>
+      {url === undefined ? (
+        <span class="commit-summary" title={props.commit.summary}>
+          {props.commit.summary}
+        </span>
+      ) : (
+        <a class="commit-summary" href={url} title={props.commit.summary}>
+          {props.commit.summary}
+        </a>
+      )}
+      {url === undefined ? (
+        <code>{props.commit.shortHash}</code>
+      ) : (
+        <a class="commit-hash" href={url}>
+          <code>{props.commit.shortHash}</code>
+        </a>
+      )}
+      <span class="commit-separator" aria-hidden="true">
+        {"\u00b7"}
       </span>
-      <code>{props.commit.shortHash}</code>
       <RelativeDate date={props.commit.date} />
     </>
+  );
+}
+
+export interface FileGitInfo {
+  commit: GitCommit;
+  historyUrl?: string;
+  repositoryUrl?: string;
+}
+
+function FileCommitHeader(props: {git: FileGitInfo | undefined}) {
+  if (props.git === undefined) return null;
+  return (
+    <div class="list-header git-list-header file-commit-header">
+      <CommitIcon />
+      <CommitSummary commit={props.git.commit} repositoryUrl={props.git.repositoryUrl} />
+      {props.git.historyUrl === undefined ? null : (
+        <a class="button file-history-link" href={props.git.historyUrl}>
+          <HistoryIcon />
+          History
+        </a>
+      )}
+    </div>
   );
 }
 
@@ -385,6 +501,16 @@ export function DirectoryPage(props: {
 }) {
   const title = props.segments.at(-1) ?? props.rootName;
   const hasRows = props.entries.length > 0 || props.segments.length > 0;
+  const repositoryUrl = props.git?.repositoryUrl;
+  const ref = props.git?.detached ? props.git.head : props.git?.branch;
+  const refUrl =
+    repositoryUrl === undefined || ref === undefined
+      ? undefined
+      : githubPage(repositoryUrl, props.git?.detached ? "commit" : "tree", ref);
+  const commitsUrl =
+    repositoryUrl === undefined || ref === undefined
+      ? undefined
+      : githubPage(repositoryUrl, "commits", ref);
   return (
     <Layout
       title={`${title} - md`}
@@ -395,17 +521,59 @@ export function DirectoryPage(props: {
     >
       {props.git ? (
         <div class="repo-toolbar">
-          <span
-            class="branch-label"
-            title={props.git.detached ? "Detached HEAD" : "Current branch"}
-          >
-            <BranchIcon />
-            {props.git.detached ? (props.git.head?.slice(0, 7) ?? "HEAD") : props.git.branch}
-          </span>
+          {refUrl === undefined ? (
+            <span
+              class="branch-label"
+              title={props.git.detached ? "Detached HEAD" : "Current branch"}
+            >
+              <BranchIcon />
+              {props.git.detached ? (props.git.head?.slice(0, 7) ?? "HEAD") : props.git.branch}
+            </span>
+          ) : (
+            <a
+              class="branch-label"
+              href={refUrl}
+              title={props.git.detached ? "Detached HEAD on GitHub" : "Current branch on GitHub"}
+            >
+              <BranchIcon />
+              {props.git.detached ? (props.git.head?.slice(0, 7) ?? "HEAD") : props.git.branch}
+            </a>
+          )}
+          {props.git.branchCount === undefined ? null : (
+            <RepositoryStat
+              href={repositoryUrl === undefined ? undefined : githubPage(repositoryUrl, "branches")}
+            >
+              <BranchIcon />
+              <span>
+                <strong>{props.git.branchCount}</strong> Branch
+                {props.git.branchCount === 1 ? "" : "es"}
+              </span>
+            </RepositoryStat>
+          )}
+          {props.git.tagCount === undefined ? null : (
+            <RepositoryStat
+              href={repositoryUrl === undefined ? undefined : githubPage(repositoryUrl, "tags")}
+            >
+              <TagIcon />
+              <span>
+                <strong>{props.git.tagCount}</strong> Tag{props.git.tagCount === 1 ? "" : "s"}
+              </span>
+            </RepositoryStat>
+          )}
           <span class="item-count">
             {props.entries.length} item{props.entries.length === 1 ? "" : "s"}
           </span>
-          <ChangesDisclosure changes={props.git.changes} segments={props.segments} />
+          {props.git.changes.length === 0 && repositoryUrl === undefined ? null : (
+            <div class="repo-toolbar-actions">
+              <ChangesDisclosure changes={props.git.changes} segments={props.segments} />
+              {repositoryUrl === undefined ? null : (
+                <a class="button repository-link" href={repositoryUrl}>
+                  <CodeIcon />
+                  GitHub
+                </a>
+              )}
+            </div>
+          )}
         </div>
       ) : null}
       <section class="file-list" aria-label="Directory contents">
@@ -413,9 +581,20 @@ export function DirectoryPage(props: {
           <div class="list-header git-list-header">
             <CommitIcon />
             {props.git.commit ? (
-              <CommitSummary commit={props.git.commit} />
+              <CommitSummary commit={props.git.commit} repositoryUrl={repositoryUrl} />
             ) : (
               <span class="commit-summary">No commits yet</span>
+            )}
+            {props.git.commitCount === undefined ? null : commitsUrl === undefined ? (
+              <span class="commit-count">
+                <HistoryIcon />
+                {props.git.commitCount} Commit{props.git.commitCount === 1 ? "" : "s"}
+              </span>
+            ) : (
+              <a class="commit-count" href={commitsUrl}>
+                <HistoryIcon />
+                {props.git.commitCount} Commit{props.git.commitCount === 1 ? "" : "s"}
+              </a>
             )}
           </div>
         ) : (
@@ -427,22 +606,6 @@ export function DirectoryPage(props: {
         )}
         {hasRows ? (
           <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                {props.git ? (
-                  <>
-                    <th class="entry-commit">Last commit</th>
-                    <th class="entry-updated">Updated</th>
-                  </>
-                ) : (
-                  <>
-                    <th class="entry-size">Size</th>
-                    <th class="entry-modified">Modified</th>
-                  </>
-                )}
-              </tr>
-            </thead>
             <tbody>
               {props.segments.length > 0 ? (
                 <tr>
@@ -480,10 +643,18 @@ export function DirectoryPage(props: {
                     {props.git ? (
                       <>
                         <td class="entry-commit" title={gitEntry?.commit?.summary}>
-                          {gitEntry?.commit?.summary}
+                          {gitEntry?.commit === undefined ? null : repositoryUrl === undefined ? (
+                            gitEntry.commit.summary
+                          ) : (
+                            <a href={githubPage(repositoryUrl, "commit", gitEntry.commit.hash)}>
+                              {gitEntry.commit.summary}
+                            </a>
+                          )}
                         </td>
                         <td class="entry-updated">
-                          {gitEntry?.commit ? <RelativeDate date={gitEntry.commit.date} /> : null}
+                          {gitEntry?.commit === undefined ? null : (
+                            <RelativeDate date={gitEntry.commit.date} />
+                          )}
                         </td>
                       </>
                     ) : (
@@ -521,6 +692,7 @@ export function DirectoryPage(props: {
 }
 
 export function MarkdownPage(props: {
+  git?: FileGitInfo | undefined;
   html: string;
   name: string;
   rootName: string;
@@ -535,6 +707,7 @@ export function MarkdownPage(props: {
       theme={props.theme}
       directory={false}
     >
+      <FileCommitHeader git={props.git} />
       <section class="document-panel">
         <div class="panel-header">
           <FileIcon />
@@ -550,6 +723,7 @@ export function MarkdownPage(props: {
 }
 
 export function SourcePage(props: {
+  git?: FileGitInfo | undefined;
   highlighted: string;
   language: string;
   name: string;
@@ -566,6 +740,7 @@ export function SourcePage(props: {
       theme={props.theme}
       directory={false}
     >
+      <FileCommitHeader git={props.git} />
       <section class="document-panel code-panel">
         <div class="panel-header">
           <FileIcon />

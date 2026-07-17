@@ -76,8 +76,9 @@ describe("application routes", () => {
     expect(body).toContain('rel="icon"');
     expect(body).toContain('href="/__md/assets/logo.svg"');
     expect(body).toContain('src="/__md/assets/logo.svg"');
+    expect(body).not.toContain("data-copy-path");
     expect(body).toContain('<img src="./doc/assets/cloudzero.svg" alt="the big picture">');
-    expect(body).toContain('<th class="entry-size">Size</th>');
+    expect(body).not.toContain("<thead>");
     expect(body).not.toContain('class="repo-toolbar"');
     expect(body.indexOf("Directory contents")).toBeLessThan(body.indexOf("Demo workspace"));
   });
@@ -107,7 +108,9 @@ describe("application routes", () => {
     expect(workspaceBody).not.toContain('class="repo-toolbar"');
     expect(projectBody).toContain('class="repo-toolbar"');
     expect(projectBody).toContain("feat: add nested repository");
-    expect(projectBody).toContain('>main</span><span class="item-count">');
+    expect(projectBody).toContain('title="Current branch"');
+    expect(projectBody).toContain("<strong>1</strong> Branch");
+    expect(projectBody).not.toContain("<thead>");
   });
 
   test("renders Git history and staged and unstaged working tree changes", async () => {
@@ -123,6 +126,9 @@ describe("application routes", () => {
       "-m",
       "initial fixture",
     ]);
+    await git(root, ["remote", "add", "origin", "git@github.com:acme/example.git"]);
+    await git(root, ["branch", "release"]);
+    await git(root, ["tag", "v1"]);
     await writeFile(path.join(root, "src", "example.ts"), "export const answer = 41;\n");
     await git(root, ["add", "src/example.ts"]);
     await writeFile(path.join(root, "src", "example.ts"), "export const answer = 42;\n");
@@ -130,12 +136,25 @@ describe("application routes", () => {
     await rm(path.join(root, "payload.js"));
 
     const app = await createApp({root});
-    const body = await (await app.request("/")).text();
+    const [body, markdownBody, sourceBody] = await Promise.all(
+      ["/", "/README.md", "/src/example.ts"].map(async (url) => (await app.request(url)).text()),
+    );
 
     expect(body).toContain('class="repo-toolbar"');
-    expect(body).toContain('>main</span><span class="item-count">');
+    expect(body).toContain('href="https://github.com/acme/example/tree/main"');
+    expect(body).toContain('href="https://github.com/acme/example/branches"');
+    expect(body).toContain("<strong>2</strong> Branches");
+    expect(body).toContain('href="https://github.com/acme/example/tags"');
+    expect(body).toContain("<strong>1</strong> Tag");
+    expect(body).toContain('href="https://github.com/acme/example/commits/main"');
+    expect(body).toContain('href="https://github.com/acme/example/commit/');
+    expect(body).toContain('class="button repository-link" href="https://github.com/acme/example"');
+    expect(body).toContain('<span class="commit-author">md test</span>');
+    expect(body).toContain('class="commit-separator" aria-hidden="true">\u00b7</span><time');
+    expect(body).not.toContain('class="commit-date"');
+    expect(body).not.toContain('<td class="entry-updated"><a');
     expect(body).toContain("initial fixture");
-    expect(body).toContain("Last commit");
+    expect(body).not.toContain("<thead>");
     expect(body).toContain("3 changes");
     expect(body).toContain('aria-label="Staged: modified"');
     expect(body).toContain('aria-label="Unstaged: modified"');
@@ -144,6 +163,28 @@ describe("application routes", () => {
     expect(body).toContain("unstaged deleted");
     expect(body).not.toContain('href="/payload.js"');
     expect(body).toContain('href="/draft.md"');
+
+    for (const fileBody of [markdownBody, sourceBody]) {
+      expect(fileBody).toContain('class="list-header git-list-header file-commit-header"');
+      expect(fileBody).toContain('<span class="commit-author">md test</span>');
+      expect(fileBody).toContain(
+        'class="commit-summary" href="https://github.com/acme/example/commit/',
+      );
+      expect(fileBody).toContain(
+        'class="commit-hash" href="https://github.com/acme/example/commit/',
+      );
+      expect(fileBody).toContain("initial fixture");
+      expect(fileBody).toContain('class="commit-separator" aria-hidden="true">\u00b7</span><time');
+      expect(fileBody).toContain('class="button file-history-link"');
+      expect(fileBody).toContain(">History</a>");
+      expect(fileBody).not.toContain('class="commit-date"');
+    }
+    expect(markdownBody).toContain('data-copy-path="README.md"');
+    expect(markdownBody).toContain('href="https://github.com/acme/example/commits/main/README.md"');
+    expect(sourceBody).toContain('data-copy-path="src/example.ts"');
+    expect(sourceBody).toContain(
+      'href="https://github.com/acme/example/commits/main/src/example.ts"',
+    );
   });
 
   test("serves the embedded logo asset", async () => {
@@ -163,6 +204,8 @@ describe("application routes", () => {
     const body = await page.text();
     expect(body).toContain('class="shiki vitesse-dark"');
     expect(body).toContain('href="/raw/src/example.ts"');
+    expect(body).toContain('data-copy-path="src/example.ts"');
+    expect(body).not.toContain("file-commit-header");
 
     const raw = await app.request("/raw/src/example.ts");
     expect(raw.headers.get("content-type")).toBe("text/plain; charset=utf-8");

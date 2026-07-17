@@ -2,6 +2,7 @@
 
 :root {
   color-scheme: light;
+  --control-height: 32px;
   --bg: #ffffff;
   --canvas-subtle: #f6f8fa;
   --border: #d1d9e0;
@@ -110,7 +111,7 @@ a:hover {
   cursor: pointer;
   font: inherit;
   font-size: 13px;
-  height: 34px;
+  height: var(--control-height);
   min-width: 190px;
   padding: 0 32px;
 }
@@ -163,9 +164,40 @@ a:hover {
   color: var(--fg-muted);
 }
 
+.copy-path-button {
+  color: var(--fg-muted);
+  flex: 0 0 auto;
+  margin-left: 4px;
+  padding: 0;
+  width: var(--control-height);
+}
+
+.copy-path-button:hover {
+  color: var(--fg);
+}
+
+.copy-path-button svg {
+  height: 16px;
+  width: 16px;
+}
+
+.copy-path-check-icon {
+  color: var(--status-added);
+  display: none;
+}
+
+.copy-path-button[data-copied="true"] .copy-path-copy-icon {
+  display: none;
+}
+
+.copy-path-button[data-copied="true"] .copy-path-check-icon {
+  display: block;
+}
+
 .repo-toolbar {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 10px;
   min-height: 34px;
@@ -180,11 +212,42 @@ a:hover {
   font-weight: 600;
   gap: 7px;
   max-width: 320px;
-  min-height: 32px;
+  height: var(--control-height);
   overflow: hidden;
   padding: 5px 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+a.branch-label {
+  color: var(--fg);
+}
+
+a.branch-label:hover {
+  background: var(--row-hover);
+  text-decoration: none;
+}
+
+.repo-stat {
+  align-items: center;
+  color: var(--fg-muted);
+  display: inline-flex;
+  font-size: 13px;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.repo-stat strong {
+  color: var(--fg);
+}
+
+a.repo-stat:hover {
+  color: var(--link);
+  text-decoration: none;
+}
+
+a.repo-stat:hover strong {
+  color: inherit;
 }
 
 .item-count {
@@ -193,8 +256,14 @@ a:hover {
 }
 
 .changes-disclosure {
-  margin-left: auto;
   position: relative;
+}
+
+.repo-toolbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .changes-disclosure summary {
@@ -207,8 +276,8 @@ a:hover {
   font-size: 13px;
   font-weight: 600;
   gap: 7px;
-  min-height: 32px;
-  padding: 5px 12px;
+  height: var(--control-height);
+  padding: 0 12px;
   list-style: none;
   user-select: none;
 }
@@ -285,6 +354,7 @@ a:hover {
 }
 
 .file-list,
+.file-commit-header,
 .document-panel,
 .readme-panel {
   border: 1px solid var(--border);
@@ -294,6 +364,16 @@ a:hover {
 
 .readme-panel {
   margin-top: 24px;
+}
+
+.file-commit-header {
+  margin-bottom: 24px;
+}
+
+.file-history-link {
+  font-weight: 600;
+  gap: 7px;
+  margin-left: 12px;
 }
 
 .list-header,
@@ -324,6 +404,11 @@ a:hover {
   font-weight: 600;
 }
 
+.commit-author {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+
 .commit-summary {
   flex: 1 1 auto;
   min-width: 0;
@@ -337,6 +422,34 @@ a:hover {
   color: var(--fg-muted);
   flex: 0 0 auto;
   font-size: 12px;
+}
+
+.git-list-header a {
+  color: inherit;
+}
+
+.git-list-header a:hover {
+  color: var(--link);
+}
+
+.commit-hash,
+.commit-separator {
+  flex: 0 0 auto;
+}
+
+.commit-separator {
+  color: var(--fg-muted);
+}
+
+.commit-count {
+  align-items: center;
+  color: var(--fg) !important;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-weight: 600;
+  gap: 6px;
+  margin-left: 8px;
+  white-space: nowrap;
 }
 
 .git-list-header code {
@@ -359,20 +472,29 @@ a:hover {
 }
 
 .button {
+  align-items: center;
   background: var(--canvas-subtle);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--fg);
-  display: inline-block;
-  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 13px;
   font-weight: 500;
-  line-height: 28px;
+  height: var(--control-height);
+  justify-content: center;
+  line-height: 1;
   padding: 0 12px;
 }
 
 .button:hover {
   background: var(--row-hover);
   text-decoration: none;
+}
+
+.repository-link {
+  gap: 7px;
 }
 
 .file-list table {
@@ -489,6 +611,10 @@ a:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   width: 42%;
+}
+
+.entry-commit a {
+  color: inherit;
 }
 
 .entry-updated {
@@ -682,6 +808,14 @@ html[data-theme="dark"] .status-badge:not(.status-unstaged) {
   .entry-size,
   .entry-commit,
   .entry-updated {
+    display: none;
+  }
+
+  .repo-stat,
+  .item-count,
+  .commit-author,
+  .commit-count,
+  .file-history-link {
     display: none;
   }
 

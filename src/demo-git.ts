@@ -1,67 +1,74 @@
 import type {GitChange, GitCommit, GitDirectoryInfo, GitMetadataProvider} from "./git.js";
 
-const head = "a5f7f76cf0e4323065f82ec2084572a3770b905c";
+const head = "950ad36b91d5356fe50d84519f92ebbe2b236528";
 
 function commit(hash: string, summary: string, date: string): GitCommit {
-  return {date: new Date(date), hash, shortHash: hash.slice(0, 7), summary};
+  return {author: "Chase Adams", date: new Date(date), hash, shortHash: hash.slice(0, 7), summary};
 }
 
 const commits = new Map<string, GitCommit>([
-  ["", commit(head, "feat: add Git-aware directory listings", "2026-07-17T01:04:06Z")],
+  [
+    "",
+    commit(
+      "9547d863c3607498f6ee0ee9f8ad71e183f19636",
+      "feat: refine default theme and layout",
+      "2026-07-16T18:58:08Z",
+    ),
+  ],
   [
     "README.md",
     commit(
-      "72beae6a6e9102f30ff0a726bc35f2c89401c549",
-      "docs: document the demo workspace",
-      "2026-07-16T20:18:00Z",
+      "9547d863c3607498f6ee0ee9f8ad71e183f19636",
+      "feat: refine default theme and layout",
+      "2026-07-16T18:58:08Z",
     ),
   ],
   [
     "example.ts",
     commit(
-      "3c5b947412bc354343fd31a51fc33c4f16b6ddeb",
-      "feat: add a typed source example",
-      "2026-07-16T19:42:00Z",
+      "a970f7daa5ed5d9e0f18fbcedf89389a0c14f480",
+      "feat: add md file browser",
+      "2026-07-16T17:12:11Z",
     ),
   ],
   [
     "guides",
     commit(
-      "cc347c674bb90fd5ef8799f6216f2fa75ffcf0b4",
-      "docs: add the getting started guide",
-      "2026-07-16T18:55:00Z",
+      "a970f7daa5ed5d9e0f18fbcedf89389a0c14f480",
+      "feat: add md file browser",
+      "2026-07-16T17:12:11Z",
     ),
   ],
   [
     "guides/getting-started.md",
     commit(
-      "cc347c674bb90fd5ef8799f6216f2fa75ffcf0b4",
-      "docs: add the getting started guide",
-      "2026-07-16T18:55:00Z",
+      "a970f7daa5ed5d9e0f18fbcedf89389a0c14f480",
+      "feat: add md file browser",
+      "2026-07-16T17:12:11Z",
     ),
   ],
   [
     "notes",
     commit(
-      "57101a9ec9d61b67684396e9b69fd14067c86a02",
-      "docs: expand the linked notes",
-      "2026-07-16T17:30:00Z",
+      "a970f7daa5ed5d9e0f18fbcedf89389a0c14f480",
+      "feat: add md file browser",
+      "2026-07-16T17:12:11Z",
     ),
   ],
   [
     "notes/deep-notes.md",
     commit(
-      "57101a9ec9d61b67684396e9b69fd14067c86a02",
-      "docs: expand the linked notes",
-      "2026-07-16T17:30:00Z",
+      "a970f7daa5ed5d9e0f18fbcedf89389a0c14f480",
+      "feat: add md file browser",
+      "2026-07-16T17:12:11Z",
     ),
   ],
   [
     "notes.md",
     commit(
-      "0fd6e0bf9a1321659b7903f97278f047afd21983",
-      "docs: showcase wiki links",
-      "2026-07-16T16:15:00Z",
+      "a970f7daa5ed5d9e0f18fbcedf89389a0c14f480",
+      "feat: add md file browser",
+      "2026-07-16T17:12:11Z",
     ),
   ],
 ]);
@@ -102,6 +109,7 @@ export const demoGitMetadata: GitMetadataProvider = {
           {
             changes: entryChanges,
             ...(entryCommit === undefined ? {} : {commit: entryCommit}),
+            repositoryPath: ["demo-files", entryPath].join("/"),
           },
         ];
       }),
@@ -109,10 +117,14 @@ export const demoGitMetadata: GitMetadataProvider = {
     const latestCommit = commits.get(directoryPath);
     return {
       branch: "main",
+      branchCount: 1,
       changes: directoryChanges,
+      commitCount: 33,
       detached: false,
       entries,
       head,
+      repositoryUrl: "https://github.com/0xcadams/md",
+      tagCount: 4,
       ...(latestCommit === undefined ? {} : {commit: latestCommit}),
     };
   },

@@ -23,7 +23,14 @@ import {
 import {GitRepositoryResolver, type GitMetadataProvider} from "./git.js";
 import {MarkdownRenderer} from "./markdown.js";
 import {resolveCodeTheme, themeCookieName} from "./themes.js";
-import {DirectoryPage, MarkdownPage, MessagePage, SourcePage, type ReadmePanel} from "./views.js";
+import {
+  DirectoryPage,
+  type FileGitInfo,
+  MarkdownPage,
+  MessagePage,
+  type ReadmePanel,
+  SourcePage,
+} from "./views.js";
 
 const maximumRenderedFileSize = 5 * 1024 * 1024;
 const assetPrefix = "/__md/assets/";
@@ -385,11 +392,44 @@ export async function createApp(options: AppOptions): Promise<Hono> {
       );
     }
     const {contents, stats} = loaded;
+    const markdownFile = isMarkdown(name);
 
-    if (isMarkdown(name)) {
-      const rendered = await markdown.render(contents.toString("utf8"), theme.id);
+    if (!markdownFile && !isTextContent(name, contents)) {
+      return await rawFileResponse(
+        context.req.raw,
+        resolved,
+        isImage ? {vary: imageResponseVary} : {},
+      );
+    }
+
+    const fileGitPromise = git
+      ?.directoryInfo(resolved.segments.slice(0, -1), [{isDirectory: false, name}])
+      .then((info): FileGitInfo | undefined => {
+        const entry = info?.entries.get(name);
+        if (entry?.commit === undefined) return undefined;
+        const ref = info?.detached ? info.head : info?.branch;
+        const historyUrl =
+          info?.repositoryUrl === undefined || ref === undefined
+            ? undefined
+            : `${info.repositoryUrl}/commits/${encodeURIComponent(ref)}/${entry.repositoryPath
+                .split("/")
+                .map(encodeURIComponent)
+                .join("/")}`;
+        return {
+          commit: entry.commit,
+          ...(historyUrl === undefined ? {} : {historyUrl}),
+          ...(info?.repositoryUrl === undefined ? {} : {repositoryUrl: info.repositoryUrl}),
+        };
+      });
+
+    if (markdownFile) {
+      const [rendered, fileGit] = await Promise.all([
+        markdown.render(contents.toString("utf8"), theme.id),
+        fileGitPromise,
+      ]);
       return context.html(
         <MarkdownPage
+          git={fileGit}
           html={rendered.html}
           name={name}
           rootName={files.name}
@@ -399,17 +439,14 @@ export async function createApp(options: AppOptions): Promise<Hono> {
       );
     }
 
-    if (!isTextContent(name, contents)) {
-      return await rawFileResponse(
-        context.req.raw,
-        resolved,
-        isImage ? {vary: imageResponseVary} : {},
-      );
-    }
     const language = languageForFile(name);
-    const highlighted = await markdown.highlight(contents.toString("utf8"), language, theme.id);
+    const [highlighted, fileGit] = await Promise.all([
+      markdown.highlight(contents.toString("utf8"), language, theme.id),
+      fileGitPromise,
+    ]);
     return context.html(
       <SourcePage
+        git={fileGit}
         highlighted={highlighted}
         language={language}
         name={name}

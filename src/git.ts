@@ -25,6 +25,7 @@ export interface GitChange {
 }
 
 export interface GitCommit {
+  author: string;
   date: Date;
   hash: string;
   shortHash: string;
@@ -34,15 +35,20 @@ export interface GitCommit {
 export interface GitEntryInfo {
   changes: readonly GitChange[];
   commit?: GitCommit;
+  repositoryPath: string;
 }
 
 export interface GitDirectoryInfo {
   branch: string;
+  branchCount?: number;
   changes: readonly GitChange[];
   commit?: GitCommit;
+  commitCount?: number;
   detached: boolean;
   entries: ReadonlyMap<string, GitEntryInfo>;
   head?: string;
+  repositoryUrl?: string;
+  tagCount?: number;
 }
 
 export interface GitDirectoryEntry {
@@ -62,6 +68,17 @@ interface GitStatus {
   changes: GitChange[];
   detached: boolean;
   head?: string;
+}
+
+interface GitHubRemote {
+  name: string;
+  repositoryUrl: string;
+}
+
+interface GitRepositoryCounts {
+  branches: number;
+  commits?: number;
+  tags: number;
 }
 
 function gitChangeKind(code: string): GitChangeKind | undefined {
@@ -156,6 +173,55 @@ function configurationBoolean(output: Uint8Array, name: string): boolean {
     return ["1", "on", "true", "yes"].includes(entry.slice(separator + 1).toLowerCase());
   }
   return false;
+}
+
+function githubRepositoryUrl(remoteUrl: string): string | undefined {
+  let owner: string | undefined;
+  let repository: string | undefined;
+  const scp = /^(?:[^@/:]+@)?github\.com:([^/]+)\/([^/]+)\/?$/i.exec(remoteUrl);
+  if (scp !== null) {
+    owner = scp[1];
+    repository = scp[2];
+  } else {
+    try {
+      const url = new URL(remoteUrl);
+      if (
+        url.hostname.toLowerCase() !== "github.com" ||
+        !["git:", "http:", "https:", "ssh:"].includes(url.protocol)
+      ) {
+        return undefined;
+      }
+      const segments = url.pathname.split("/").filter(Boolean);
+      if (segments.length !== 2) return undefined;
+      [owner, repository] = segments;
+    } catch {
+      return undefined;
+    }
+  }
+
+  repository = repository?.replace(/\.git$/i, "");
+  if (
+    owner === undefined ||
+    repository === undefined ||
+    !/^[\w.-]+$/.test(owner) ||
+    !/^[\w.-]+$/.test(repository)
+  ) {
+    return undefined;
+  }
+  return `https://github.com/${owner}/${repository}`;
+}
+
+function githubRemoteFromConfiguration(output: Uint8Array): GitHubRemote | undefined {
+  const remotes: GitHubRemote[] = [];
+  for (const entry of new TextDecoder().decode(output).split("\0")) {
+    const separator = entry.indexOf("\n");
+    if (separator === -1) continue;
+    const match = /^remote\.(.+)\.url$/i.exec(entry.slice(0, separator));
+    if (match?.[1] === undefined) continue;
+    const repositoryUrl = githubRepositoryUrl(entry.slice(separator + 1));
+    if (repositoryUrl !== undefined) remotes.push({name: match[1], repositoryUrl});
+  }
+  return remotes.find((remote) => remote.name.toLowerCase() === "origin") ?? remotes[0];
 }
 
 async function filesystemIgnoresCase(directory: string): Promise<boolean> {
@@ -274,19 +340,21 @@ function parseCommit(output: Uint8Array): GitCommit | undefined {
   const hash = fields[0];
   const shortHash = fields[1];
   const timestamp = fields[2];
-  const summary = fields[3]?.trimEnd();
+  const author = fields[3];
+  const summary = fields[4]?.trimEnd();
   if (
     hash === undefined ||
     hash === "" ||
     shortHash === undefined ||
     timestamp === undefined ||
+    author === undefined ||
     summary === undefined
   ) {
     return undefined;
   }
   const seconds = Number(timestamp);
   if (!Number.isFinite(seconds)) return undefined;
-  return {date: new Date(seconds * 1_000), hash, shortHash, summary};
+  return {author, date: new Date(seconds * 1_000), hash, shortHash, summary};
 }
 
 async function readLimited(
@@ -398,6 +466,7 @@ async function discoverRepositoryRoot(directory: string): Promise<string | undef
 
 export class GitRepository implements GitMetadataProvider {
   private readonly commitCache = new Map<string, Promise<GitCommit | undefined>>();
+  private commitCountCache: Promise<number | undefined> | undefined;
   private readonly filesystemIgnoreCase: Promise<boolean>;
   private historyHead: string | undefined;
   private ignoreCase = false;
@@ -453,7 +522,14 @@ export class GitRepository implements GitMetadataProvider {
     if (cached !== undefined) return cached;
 
     const pathspec = literalPathspec(filePath, ignoreCase);
-    const pending = this.run(["log", "-1", "--format=%H%x00%h%x00%ct%x00%s", head, "--", pathspec])
+    const pending = this.run([
+      "log",
+      "-1",
+      "--format=%H%x00%h%x00%ct%x00%an%x00%s",
+      head,
+      "--",
+      pathspec,
+    ])
       .then(parseCommit)
       .catch(() => {
         this.commitCache.delete(key);
@@ -463,15 +539,64 @@ export class GitRepository implements GitMetadataProvider {
     return pending;
   }
 
+  private async repositoryCounts(
+    head: string | undefined,
+    remoteName: string | undefined,
+  ): Promise<GitRepositoryCounts | undefined> {
+    try {
+      const refPrefixes = ["refs/heads", "refs/tags"];
+      if (remoteName !== undefined) refPrefixes.push(`refs/remotes/${remoteName}`);
+      const [refOutput, commits] = await Promise.all([
+        this.run(["for-each-ref", "--format=%(refname)", ...refPrefixes]),
+        head === undefined ? undefined : this.commitCount(head),
+      ]);
+      const branches = new Set<string>();
+      let tags = 0;
+      for (const ref of new TextDecoder().decode(refOutput).split(/\r?\n/)) {
+        if (ref.startsWith("refs/heads/")) {
+          branches.add(ref.slice("refs/heads/".length));
+        } else if (remoteName !== undefined && ref.startsWith(`refs/remotes/${remoteName}/`)) {
+          const branch = ref.slice(`refs/remotes/${remoteName}/`.length);
+          if (branch !== "HEAD") branches.add(branch);
+        } else if (ref.startsWith("refs/tags/")) {
+          tags += 1;
+        }
+      }
+      return {
+        branches: branches.size,
+        ...(commits === undefined ? {} : {commits}),
+        tags,
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private commitCount(head: string): Promise<number | undefined> {
+    if (this.commitCountCache !== undefined) return this.commitCountCache;
+    this.commitCountCache = this.run(["rev-list", "--count", head])
+      .then((output) => {
+        const count = Number(new TextDecoder().decode(output).trim());
+        return Number.isSafeInteger(count) ? count : undefined;
+      })
+      .catch(() => {
+        this.commitCountCache = undefined;
+        return undefined;
+      });
+    return this.commitCountCache;
+  }
+
   async directoryInfo(
     segments: readonly string[],
     directoryEntries: readonly GitDirectoryEntry[],
   ): Promise<GitDirectoryInfo | undefined> {
     let status: GitStatus;
     let ignoreCase = false;
+    let githubRemote: GitHubRemote | undefined;
     const directoryPath = segments.join("/");
     try {
       const configuration = await this.run(["config", "--local", "--null", "--list", "--includes"]);
+      githubRemote = githubRemoteFromConfiguration(configuration);
       ignoreCase =
         configurationBoolean(configuration, "core.ignorecase") && (await this.filesystemIgnoreCase);
       this.ignoreCase = ignoreCase;
@@ -495,8 +620,11 @@ export class GitRepository implements GitMetadataProvider {
 
     if (status.head !== this.historyHead) {
       this.commitCache.clear();
+      this.commitCountCache = undefined;
       this.historyHead = status.head;
     }
+
+    const countsPromise = this.repositoryCounts(status.head, githubRemote?.name);
 
     const changes = status.changes
       .filter(
@@ -539,17 +667,23 @@ export class GitRepository implements GitMetadataProvider {
         entries.set(entry.name, {
           changes: entryChanges,
           ...(entryCommit === undefined ? {} : {commit: entryCommit}),
+          repositoryPath: [this.repositoryPrefix, entryPath].filter(Boolean).join("/"),
         });
       }),
     );
 
+    const counts = await countsPromise;
+
     return {
       branch: status.branch,
+      ...(counts === undefined ? {} : {branchCount: counts.branches, tagCount: counts.tags}),
       changes,
+      ...(counts?.commits === undefined ? {} : {commitCount: counts.commits}),
       detached: status.detached,
       entries,
       ...(commit === undefined ? {} : {commit}),
       ...(status.head === undefined ? {} : {head: status.head}),
+      ...(githubRemote === undefined ? {} : {repositoryUrl: githubRemote.repositoryUrl}),
     };
   }
 }
