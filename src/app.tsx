@@ -20,7 +20,7 @@ import {
   RootFileSystem,
   type ResolvedFile,
 } from "./filesystem.js";
-import {GitRepository} from "./git.js";
+import {GitRepository, type GitMetadataProvider} from "./git.js";
 import {MarkdownRenderer} from "./markdown.js";
 import {resolveCodeTheme, themeCookieName} from "./themes.js";
 import {DirectoryPage, MarkdownPage, MessagePage, SourcePage, type ReadmePanel} from "./views.js";
@@ -37,6 +37,7 @@ export interface AppOptions {
   assetDirectory?: string;
   assets?: Readonly<Record<string, string | Uint8Array>>;
   customCss?: string;
+  git?: GitMetadataProvider | undefined;
   logger?: Pick<Console, "error">;
   root: string;
 }
@@ -192,7 +193,7 @@ async function rawFileResponse(
 export async function createApp(options: AppOptions): Promise<Hono> {
   const logger = options.logger ?? console;
   const files = await RootFileSystem.open(options.root);
-  const git = await GitRepository.open(files.root);
+  const git = options.git ?? (await GitRepository.open(files.root));
   const markdown = new MarkdownRenderer(await files.buildWikiIndex());
   const assetDirectory =
     options.assets === undefined

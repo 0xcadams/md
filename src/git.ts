@@ -43,16 +43,23 @@ export interface GitDirectoryInfo {
   head?: string;
 }
 
+export interface GitDirectoryEntry {
+  isDirectory: boolean;
+  name: string;
+}
+
+export interface GitMetadataProvider {
+  directoryInfo(
+    segments: readonly string[],
+    directoryEntries: readonly GitDirectoryEntry[],
+  ): Promise<GitDirectoryInfo | undefined>;
+}
+
 interface GitStatus {
   branch: string;
   changes: GitChange[];
   detached: boolean;
   head?: string;
-}
-
-interface DirectoryEntryLike {
-  isDirectory: boolean;
-  name: string;
 }
 
 function gitChangeKind(code: string): GitChangeKind | undefined {
@@ -291,7 +298,7 @@ async function runGit(
   }
 }
 
-export class GitRepository {
+export class GitRepository implements GitMetadataProvider {
   private activeCommands = 0;
   private readonly commitCache = new Map<string, Promise<GitCommit | undefined>>();
   private historyHead: string | undefined;
@@ -357,7 +364,7 @@ export class GitRepository {
 
   async directoryInfo(
     segments: readonly string[],
-    directoryEntries: readonly DirectoryEntryLike[],
+    directoryEntries: readonly GitDirectoryEntry[],
   ): Promise<GitDirectoryInfo | undefined> {
     let status: GitStatus;
     const directoryPath = segments.join("/");

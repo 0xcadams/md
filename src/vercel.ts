@@ -3,9 +3,11 @@ import path from "node:path";
 import {Hono} from "hono";
 
 import {createApp} from "./app.js";
+import {demoGitMetadata} from "./demo-git.js";
 
 const app: Hono = await createApp({
   assetDirectory: path.resolve("public/assets"),
+  git: demoGitMetadata,
   root: path.resolve("demo-files"),
 });
 
