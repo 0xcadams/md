@@ -13,7 +13,7 @@ COPY scripts ./scripts
 COPY src ./src
 RUN MD_BUILD_VERSION="${VERSION}" bun run binary
 
-FROM gcr.io/distroless/base-debian12:nonroot AS runtime
+FROM cgr.dev/chainguard/git:latest-glibc@sha256:7671e64c37b99739fd52eb5ae4299e957c5095e083d6ee5dcd1845ce850a7614 AS runtime
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="md" \
       org.opencontainers.image.description="minimal server to view markdown and code" \
@@ -21,10 +21,14 @@ LABEL org.opencontainers.image.title="md" \
       org.opencontainers.image.source="https://github.com/0xcadams/md" \
       org.opencontainers.image.version="${VERSION}"
 ENV MD_HOST=0.0.0.0 \
-    PORT=8080
-COPY --from=build --chown=nonroot:nonroot /app/dist/md /usr/local/bin/md
-COPY --chown=nonroot:nonroot LICENSE /licenses/LICENSE
-USER nonroot:nonroot
+    PORT=8080 \
+    GIT_CONFIG_COUNT=1 \
+    GIT_CONFIG_KEY_0=safe.directory \
+    GIT_CONFIG_VALUE_0=/data \
+    GIT_OPTIONAL_LOCKS=0
+COPY --from=build --chown=65532:65532 /app/dist/md /usr/local/bin/md
+COPY --chown=65532:65532 LICENSE /licenses/LICENSE
+USER 65532:65532
 WORKDIR /data
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/md"]

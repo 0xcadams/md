@@ -8,6 +8,27 @@ import {embeddedAssets} from "./embedded-assets.js";
 
 const temporaryDirectories: string[] = [];
 const fixtureSvg = '<svg xmlns="http://www.w3.org/2000/svg"><title>CloudZero</title></svg>\n';
+const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
+
+async function git(root: string, arguments_: readonly string[]): Promise<void> {
+  const process = Bun.spawn(["git", ...arguments_], {
+    cwd: root,
+    env: {
+      ...Bun.env,
+      GIT_CONFIG_GLOBAL: nullDevice,
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_TERMINAL_PROMPT: "0",
+    },
+    stderr: "pipe",
+    stdout: "pipe",
+  });
+  const [exitCode, stderr] = await Promise.all([
+    process.exited,
+    new Response(process.stderr).text(),
+    new Response(process.stdout).arrayBuffer(),
+  ]);
+  if (exitCode !== 0) throw new Error(stderr.trim() || `git exited with ${exitCode}`);
+}
 
 async function fixture(): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), "md-app-"));
@@ -56,7 +77,45 @@ describe("application routes", () => {
     expect(body).toContain('href="/__md/assets/logo.svg"');
     expect(body).toContain('src="/__md/assets/logo.svg"');
     expect(body).toContain('<img src="./doc/assets/cloudzero.svg" alt="the big picture">');
+    expect(body).toContain('<th class="entry-size">Size</th>');
+    expect(body).not.toContain('class="repo-toolbar"');
     expect(body.indexOf("Directory contents")).toBeLessThan(body.indexOf("Demo workspace"));
+  });
+
+  test("renders Git history and staged and unstaged working tree changes", async () => {
+    const root = await fixture();
+    await git(root, ["init", "-b", "main"]);
+    await git(root, ["add", "."]);
+    await git(root, [
+      "-c",
+      "user.name=md test",
+      "-c",
+      "user.email=md@example.com",
+      "commit",
+      "-m",
+      "initial fixture",
+    ]);
+    await writeFile(path.join(root, "src", "example.ts"), "export const answer = 41;\n");
+    await git(root, ["add", "src/example.ts"]);
+    await writeFile(path.join(root, "src", "example.ts"), "export const answer = 42;\n");
+    await writeFile(path.join(root, "draft.md"), "# Draft\n");
+    await rm(path.join(root, "payload.js"));
+
+    const app = await createApp({root});
+    const body = await (await app.request("/")).text();
+
+    expect(body).toContain('class="repo-toolbar"');
+    expect(body).toContain('>main</span><span class="item-count">');
+    expect(body).toContain("initial fixture");
+    expect(body).toContain("Last commit");
+    expect(body).toContain("3 changes");
+    expect(body).toContain('aria-label="Staged: modified"');
+    expect(body).toContain('aria-label="Unstaged: modified"');
+    expect(body).toContain('aria-label="Untracked"');
+    expect(body).toContain("payload.js");
+    expect(body).toContain("unstaged deleted");
+    expect(body).not.toContain('href="/payload.js"');
+    expect(body).toContain('href="/draft.md"');
   });
 
   test("serves the embedded logo asset", async () => {

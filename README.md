@@ -18,7 +18,7 @@ Point it at a directory and open the URL it prints. Directories look like GitHub
 
 Open `http://127.0.0.1:8080`.
 
-The binary includes the server, syntax highlighter, themes, and browser assets. No runtime or installation is required.
+The binary is self-contained. Git metadata appears when `git` is available.
 
 ## Docker
 
@@ -35,7 +35,7 @@ docker run --rm \
 ## Features
 
 - GitHub Flavored Markdown and Shiki syntax highlighting
-- GitHub-style directory listings with rendered READMEs
+- GitHub-style listings with commits, worktree status, and rendered READMEs
 - Selectable light and dark Shiki themes
 - Mermaid, wiki links, and GitHub alerts
 - Raw files at `/raw/<path>`

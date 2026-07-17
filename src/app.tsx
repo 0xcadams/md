@@ -20,6 +20,7 @@ import {
   RootFileSystem,
   type ResolvedFile,
 } from "./filesystem.js";
+import {GitRepository} from "./git.js";
 import {MarkdownRenderer} from "./markdown.js";
 import {resolveCodeTheme, themeCookieName} from "./themes.js";
 import {DirectoryPage, MarkdownPage, MessagePage, SourcePage, type ReadmePanel} from "./views.js";
@@ -191,6 +192,7 @@ async function rawFileResponse(
 export async function createApp(options: AppOptions): Promise<Hono> {
   const logger = options.logger ?? console;
   const files = await RootFileSystem.open(options.root);
+  const git = await GitRepository.open(files.root);
   const markdown = new MarkdownRenderer(await files.buildWikiIndex());
   const assetDirectory =
     options.assets === undefined
@@ -328,6 +330,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
       }
 
       const entries = await files.list(resolved);
+      const gitInfoPromise = git?.directoryInfo(resolved.segments, entries);
       const readmeEntry =
         entries.find((entry) => !entry.isDirectory && entry.name.toLowerCase() === "readme.md") ??
         entries.find((entry) => !entry.isDirectory && entry.name.toLowerCase() === "index.md");
@@ -349,6 +352,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
       return context.html(
         <DirectoryPage
           entries={entries}
+          git={await gitInfoPromise}
           readme={readme}
           rootName={files.name}
           segments={resolved.segments}
