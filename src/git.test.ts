@@ -1,9 +1,9 @@
 import {afterEach, describe, expect, test} from "bun:test";
-import {access, mkdtemp, mkdir, rename, rm, writeFile} from "node:fs/promises";
+import {access, mkdtemp, mkdir, realpath, rename, rm, symlink, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import path from "node:path";
 
-import {GitRepository, parseGitStatus} from "./git.js";
+import {GitRepository, GitRepositoryResolver, parseGitStatus} from "./git.js";
 
 const temporaryDirectories: string[] = [];
 const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
@@ -33,6 +33,19 @@ async function git(root: string, arguments_: readonly string[]): Promise<string>
   ]);
   if (exitCode !== 0) throw new Error(stderr.trim() || `git exited with ${exitCode}`);
   return stdout;
+}
+
+async function commitAll(root: string, message: string): Promise<void> {
+  await git(root, ["add", "."]);
+  await git(root, [
+    "-c",
+    "user.name=md test",
+    "-c",
+    "user.email=md@example.com",
+    "commit",
+    "-m",
+    message,
+  ]);
 }
 
 afterEach(async () => {
@@ -74,6 +87,18 @@ describe("Git status parsing", () => {
       {conflicted: true, path: "conflict.txt"},
       {path: "untracked.txt", untracked: true},
     ]);
+
+    const caseInsensitive = parseGitStatus(
+      [
+        "# branch.oid 0123456789abcdef",
+        "# branch.head main",
+        "1 .M N... 100644 100644 100644 abc def src/Example.ts",
+        "",
+      ].join("\0"),
+      "Src",
+      true,
+    );
+    expect(caseInsensitive.changes).toEqual([{path: "Example.ts", unstaged: "modified"}]);
   });
 });
 
@@ -171,5 +196,195 @@ describe("GitRepository", () => {
       () => false,
     );
     expect(filterRan).toBe(false);
+  });
+});
+
+describe("GitRepositoryResolver", () => {
+  test("resolves sibling repositories and rebases nested paths", async () => {
+    const workspace = await temporaryDirectory();
+    const first = path.join(workspace, "first");
+    const second = path.join(workspace, "second");
+    await mkdir(path.join(first, "src"), {recursive: true});
+    await mkdir(path.join(first, "a"));
+    await mkdir(path.join(first, "b"));
+    await mkdir(second);
+
+    await git(first, ["init", "-b", "main"]);
+    await writeFile(path.join(first, "README.md"), "# First\n");
+    await writeFile(path.join(first, "a", "old.txt"), "move me\n");
+    await writeFile(path.join(first, "src", "example.ts"), "export const value = 1;\n");
+    await commitAll(first, "feat: add first repository");
+    await writeFile(path.join(first, "src", "example.ts"), "export const value = 2;\n");
+    await rename(path.join(first, "a", "old.txt"), path.join(first, "b", "new.txt"));
+    await git(first, ["add", "a/old.txt", "b/new.txt"]);
+
+    await git(second, ["init", "-b", "release"]);
+    await writeFile(path.join(second, "notes.md"), "# Notes\n");
+    await commitAll(second, "docs: add second repository");
+    await symlink(first, path.join(workspace, "alias"));
+
+    const resolver = new GitRepositoryResolver(workspace);
+    expect(
+      await resolver.directoryInfo(
+        [],
+        [
+          {isDirectory: true, name: "first"},
+          {isDirectory: true, name: "second"},
+        ],
+      ),
+    ).toBeUndefined();
+
+    const firstInfo = await resolver.directoryInfo(
+      ["first"],
+      [
+        {isDirectory: false, name: "README.md"},
+        {isDirectory: true, name: "a"},
+        {isDirectory: true, name: "b"},
+        {isDirectory: true, name: "src"},
+      ],
+    );
+    expect(firstInfo?.branch).toBe("main");
+    expect(firstInfo?.commit?.summary).toBe("feat: add first repository");
+    expect(firstInfo?.changes).toEqual([
+      {
+        originalPath: "first/a/old.txt",
+        path: "first/b/new.txt",
+        staged: "renamed",
+      },
+      {path: "first/src/example.ts", unstaged: "modified"},
+    ]);
+    expect(firstInfo?.entries.get("src")?.changes).toEqual([
+      {path: "first/src/example.ts", unstaged: "modified"},
+    ]);
+
+    const nestedInfo = await resolver.directoryInfo(
+      ["first", "src"],
+      [{isDirectory: false, name: "example.ts"}],
+    );
+    expect(nestedInfo?.commit?.summary).toBe("feat: add first repository");
+    expect(nestedInfo?.changes).toEqual([{path: "first/src/example.ts", unstaged: "modified"}]);
+
+    const renameSource = await resolver.directoryInfo(["first", "a"], []);
+    expect(renameSource?.changes).toEqual([{path: "first/a/old.txt", staged: "deleted"}]);
+    const renameTarget = await resolver.directoryInfo(
+      ["first", "b"],
+      [{isDirectory: false, name: "new.txt"}],
+    );
+    expect(renameTarget?.entries.get("new.txt")?.changes).toEqual([
+      {path: "first/b/new.txt", staged: "added"},
+    ]);
+
+    const scopedResolver = new GitRepositoryResolver(path.join(first, "src"));
+    const scopedInfo = await scopedResolver.directoryInfo(
+      [],
+      [{isDirectory: false, name: "example.ts"}],
+    );
+    expect(scopedInfo?.commit?.summary).toBe("feat: add first repository");
+    expect(scopedInfo?.changes).toEqual([{path: "example.ts", unstaged: "modified"}]);
+
+    const aliasInfo = await resolver.directoryInfo(
+      ["alias"],
+      [
+        {isDirectory: true, name: "a"},
+        {isDirectory: true, name: "b"},
+        {isDirectory: true, name: "src"},
+      ],
+    );
+    expect(aliasInfo?.changes).toEqual([
+      {
+        originalPath: "alias/a/old.txt",
+        path: "alias/b/new.txt",
+        staged: "renamed",
+      },
+      {path: "alias/src/example.ts", unstaged: "modified"},
+    ]);
+
+    const secondInfo = await resolver.directoryInfo(
+      ["second"],
+      [{isDirectory: false, name: "notes.md"}],
+    );
+    expect(secondInfo?.branch).toBe("release");
+    expect(secondInfo?.commit?.summary).toBe("docs: add second repository");
+    expect(secondInfo?.changes).toEqual([]);
+
+    const nestedRoot = path.join(first, "src");
+    await git(nestedRoot, ["init", "-b", "nested"]);
+    await commitAll(nestedRoot, "feat: initialize nested repository");
+    const createdNestedInfo = await resolver.directoryInfo(
+      ["first", "src"],
+      [{isDirectory: false, name: "example.ts"}],
+    );
+    expect(createdNestedInfo?.branch).toBe("nested");
+    expect(createdNestedInfo?.commit?.summary).toBe("feat: initialize nested repository");
+
+    await rm(path.join(nestedRoot, ".git"), {force: true, recursive: true});
+    const removedNestedInfo = await resolver.directoryInfo(
+      ["first", "src"],
+      [{isDirectory: false, name: "example.ts"}],
+    );
+    expect(removedNestedInfo?.branch).toBe("main");
+    expect(removedNestedInfo?.commit?.summary).toBe("feat: add first repository");
+  });
+
+  test("does not resolve repositories through escaping symlinks", async () => {
+    const workspace = await temporaryDirectory();
+    const outside = await temporaryDirectory();
+    await git(outside, ["init", "-b", "main"]);
+    await writeFile(path.join(outside, "README.md"), "# Outside\n");
+    await commitAll(outside, "docs: add outside repository");
+    await symlink(outside, path.join(workspace, "outside"));
+
+    const resolver = new GitRepositoryResolver(workspace);
+    expect(
+      await resolver.directoryInfo(["outside"], [{isDirectory: false, name: "README.md"}]),
+    ).toBeUndefined();
+  });
+
+  test("discovers a repository immediately after an earlier miss", async () => {
+    const workspace = await temporaryDirectory();
+    const project = path.join(workspace, "project");
+    await mkdir(project);
+    const resolver = new GitRepositoryResolver(workspace);
+    expect(await resolver.directoryInfo(["project"], [])).toBeUndefined();
+
+    await git(project, ["init", "-b", "main"]);
+    await writeFile(path.join(project, "README.md"), "# Project\n");
+    await commitAll(project, "feat: initialize repository");
+    const info = await resolver.directoryInfo(
+      ["project"],
+      [{isDirectory: false, name: "README.md"}],
+    );
+    expect(info?.branch).toBe("main");
+    expect(info?.commit?.summary).toBe("feat: initialize repository");
+  });
+
+  test("uses case-insensitive pathspecs when configured by Git", async () => {
+    const workspace = await temporaryDirectory();
+    const project = path.join(workspace, "project");
+    await mkdir(path.join(project, "src"), {recursive: true});
+    await git(project, ["init", "-b", "main"]);
+    await writeFile(path.join(project, "src", "example.ts"), "export const value = 1;\n");
+    await commitAll(project, "feat: add source file");
+    await git(project, ["config", "core.ignorecase", "true"]);
+    await rename(path.join(project, "src"), path.join(project, "Src"));
+    await writeFile(path.join(project, "Src", "example.ts"), "export const value = 2;\n");
+
+    const resolver = new GitRepositoryResolver(workspace);
+    const info = await resolver.directoryInfo(
+      ["project", "Src"],
+      [{isDirectory: false, name: "example.ts"}],
+    );
+    const caseInsensitiveFilesystem = await realpath(path.join(project, "src")).then(
+      () => true,
+      () => false,
+    );
+    if (caseInsensitiveFilesystem) {
+      expect(info?.commit?.summary).toBe("feat: add source file");
+      expect(info?.changes).toEqual([{path: "project/Src/example.ts", unstaged: "modified"}]);
+      expect(info?.entries.get("example.ts")?.commit?.summary).toBe("feat: add source file");
+    } else {
+      expect(info?.commit).toBeUndefined();
+      expect(info?.changes).toEqual([]);
+    }
   });
 });

@@ -4,6 +4,8 @@ import path from "node:path";
 const gitCommandTimeout = 5_000;
 const maximumGitOutput = 16 * 1024 * 1024;
 const maximumConcurrentGitCommands = 6;
+const maximumCachedDirectories = 256;
+const maximumCachedRepositories = 64;
 
 export type GitChangeKind =
   | "added"
@@ -93,14 +95,39 @@ function splitAfterFields(value: string, count: number): [string[], string] | un
   return [fields, value.slice(start)];
 }
 
-function stripRepositoryPrefix(filePath: string, repositoryPrefix: string): string | undefined {
+function normalizeGitPath(filePath: string, ignoreCase: boolean): string {
+  return ignoreCase ? filePath.toLowerCase() : filePath;
+}
+
+function stripRepositoryPrefix(
+  filePath: string,
+  repositoryPrefix: string,
+  ignoreCase = false,
+): string | undefined {
   if (repositoryPrefix === "") return filePath;
-  if (!filePath.startsWith(`${repositoryPrefix}/`)) return undefined;
+  if (
+    !normalizeGitPath(filePath, ignoreCase).startsWith(
+      `${normalizeGitPath(repositoryPrefix, ignoreCase)}/`,
+    )
+  ) {
+    return undefined;
+  }
   return filePath.slice(repositoryPrefix.length + 1);
 }
 
-function pathIsInside(filePath: string, directory: string): boolean {
-  return directory === "" || filePath === directory || filePath.startsWith(`${directory}/`);
+function pathIsInside(filePath: string, directory: string, ignoreCase = false): boolean {
+  const normalizedPath = normalizeGitPath(filePath, ignoreCase);
+  const normalizedDirectory = normalizeGitPath(directory, ignoreCase);
+  return (
+    normalizedDirectory === "" ||
+    normalizedPath === normalizedDirectory ||
+    normalizedPath.startsWith(`${normalizedDirectory}/`)
+  );
+}
+
+function literalPathspec(filePath: string, ignoreCase: boolean): string {
+  if (filePath === "") return ".";
+  return ignoreCase ? `:(icase,literal)${filePath}` : `:(literal)${filePath}`;
 }
 
 function filterConfigurationOverrides(output: Uint8Array): string[] {
@@ -121,7 +148,45 @@ function filterConfigurationOverrides(output: Uint8Array): string[] {
   ]);
 }
 
-export function parseGitStatus(output: string, repositoryPrefix = ""): GitStatus {
+function configurationBoolean(output: Uint8Array, name: string): boolean {
+  const normalizedName = name.toLowerCase();
+  for (const entry of new TextDecoder().decode(output).split("\0")) {
+    const separator = entry.indexOf("\n");
+    if (separator === -1 || entry.slice(0, separator).toLowerCase() !== normalizedName) continue;
+    return ["1", "on", "true", "yes"].includes(entry.slice(separator + 1).toLowerCase());
+  }
+  return false;
+}
+
+async function filesystemIgnoresCase(directory: string): Promise<boolean> {
+  let current = await realpath(directory);
+  while (true) {
+    const parent = path.dirname(current);
+    const name = path.basename(current);
+    const letterIndex = name.search(/[a-z]/i);
+    if (letterIndex !== -1) {
+      const letter = name[letterIndex] ?? "";
+      const alternateLetter =
+        letter === letter.toLowerCase() ? letter.toUpperCase() : letter.toLowerCase();
+      const alternateName = `${name.slice(0, letterIndex)}${alternateLetter}${name.slice(letterIndex + 1)}`;
+      try {
+        // Each ancestor is checked only when its child name has no usable casing variant.
+        // eslint-disable-next-line no-await-in-loop
+        return (await realpath(path.join(parent, alternateName))) === current;
+      } catch {
+        return false;
+      }
+    }
+    if (parent === current) return false;
+    current = parent;
+  }
+}
+
+export function parseGitStatus(
+  output: string,
+  repositoryPrefix = "",
+  ignoreCase = false,
+): GitStatus {
   const records = output.split("\0");
   const changes: GitChange[] = [];
   let branch = "HEAD";
@@ -144,7 +209,7 @@ export function parseGitStatus(output: string, repositoryPrefix = ""): GitStatus
     }
 
     if (record.startsWith("? ")) {
-      const filePath = stripRepositoryPrefix(record.slice(2), repositoryPrefix);
+      const filePath = stripRepositoryPrefix(record.slice(2), repositoryPrefix, ignoreCase);
       if (filePath !== undefined) changes.push({path: filePath, untracked: true});
       continue;
     }
@@ -153,7 +218,7 @@ export function parseGitStatus(output: string, repositoryPrefix = ""): GitStatus
       const parsed = splitAfterFields(record, 8);
       if (parsed === undefined) continue;
       const [fields, rawPath] = parsed;
-      const filePath = stripRepositoryPrefix(rawPath, repositoryPrefix);
+      const filePath = stripRepositoryPrefix(rawPath, repositoryPrefix, ignoreCase);
       const status = fields[1];
       if (filePath === undefined || status === undefined) continue;
       const staged = gitChangeKind(status[0] ?? ".");
@@ -169,7 +234,7 @@ export function parseGitStatus(output: string, repositoryPrefix = ""): GitStatus
       const parsed = splitAfterFields(record, 9);
       if (parsed === undefined) continue;
       const [fields, rawPath] = parsed;
-      const filePath = stripRepositoryPrefix(rawPath, repositoryPrefix);
+      const filePath = stripRepositoryPrefix(rawPath, repositoryPrefix, ignoreCase);
       const status = fields[1];
       const rawOriginalPath = records[index + 1];
       index += 1;
@@ -179,7 +244,7 @@ export function parseGitStatus(output: string, repositoryPrefix = ""): GitStatus
       const originalPath =
         rawOriginalPath === undefined
           ? undefined
-          : stripRepositoryPrefix(rawOriginalPath, repositoryPrefix);
+          : stripRepositoryPrefix(rawOriginalPath, repositoryPrefix, ignoreCase);
       const change: GitChange = {path: filePath};
       if (originalPath !== undefined) change.originalPath = originalPath;
       if (staged !== undefined) change.staged = staged;
@@ -191,7 +256,7 @@ export function parseGitStatus(output: string, repositoryPrefix = ""): GitStatus
     if (record.startsWith("u ")) {
       const parsed = splitAfterFields(record, 10);
       if (parsed === undefined) continue;
-      const filePath = stripRepositoryPrefix(parsed[1], repositoryPrefix);
+      const filePath = stripRepositoryPrefix(parsed[1], repositoryPrefix, ignoreCase);
       if (filePath !== undefined) changes.push({conflicted: true, path: filePath});
     }
   }
@@ -298,24 +363,58 @@ async function runGit(
   }
 }
 
-export class GitRepository implements GitMetadataProvider {
+class GitCommandLimiter {
   private activeCommands = 0;
+  private readonly waiters: Array<() => void> = [];
+
+  async run<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.activeCommands >= maximumConcurrentGitCommands) {
+      await new Promise<void>((resolve) => this.waiters.push(resolve));
+    }
+    this.activeCommands += 1;
+    try {
+      return await operation();
+    } finally {
+      this.activeCommands -= 1;
+      this.waiters.shift()?.();
+    }
+  }
+}
+
+const gitCommands = new GitCommandLimiter();
+
+async function discoverRepositoryRoot(directory: string): Promise<string | undefined> {
+  try {
+    const canonicalDirectory = await realpath(directory);
+    const output = await gitCommands.run(async () =>
+      runGit(canonicalDirectory, "*", ["rev-parse", "--show-toplevel"]),
+    );
+    const repositoryRoot = new TextDecoder().decode(output).replace(/\r?\n$/, "");
+    return repositoryRoot === "" ? undefined : await realpath(repositoryRoot);
+  } catch {
+    return undefined;
+  }
+}
+
+export class GitRepository implements GitMetadataProvider {
   private readonly commitCache = new Map<string, Promise<GitCommit | undefined>>();
+  private readonly filesystemIgnoreCase: Promise<boolean>;
   private historyHead: string | undefined;
-  private readonly commandWaiters: Array<() => void> = [];
+  private ignoreCase = false;
 
   private constructor(
     private readonly root: string,
     private readonly repositoryRoot: string,
     private readonly repositoryPrefix: string,
-  ) {}
+  ) {
+    this.filesystemIgnoreCase = filesystemIgnoresCase(root);
+  }
 
   static async open(root: string): Promise<GitRepository | undefined> {
     try {
       const canonicalRoot = await realpath(root);
-      const output = await runGit(canonicalRoot, "*", ["rev-parse", "--show-toplevel"]);
-      const repositoryRoot = new TextDecoder().decode(output).replace(/\r?\n$/, "");
-      if (repositoryRoot === "") return undefined;
+      const repositoryRoot = await discoverRepositoryRoot(canonicalRoot);
+      if (repositoryRoot === undefined) return undefined;
       const relative = path.relative(repositoryRoot, canonicalRoot);
       if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
         return undefined;
@@ -327,31 +426,33 @@ export class GitRepository implements GitMetadataProvider {
     }
   }
 
-  private async run(arguments_: readonly string[]): Promise<Uint8Array> {
-    return await this.withCommandPermit(async () =>
-      runGit(this.root, this.repositoryRoot, arguments_),
-    );
-  }
-
-  private async withCommandPermit<T>(operation: () => Promise<T>): Promise<T> {
-    if (this.activeCommands >= maximumConcurrentGitCommands) {
-      await new Promise<void>((resolve) => this.commandWaiters.push(resolve));
-    }
-    this.activeCommands += 1;
+  static async openRoot(root: string): Promise<GitRepository | undefined> {
     try {
-      return await operation();
-    } finally {
-      this.activeCommands -= 1;
-      this.commandWaiters.shift()?.();
+      const canonicalRoot = await realpath(root);
+      return new GitRepository(canonicalRoot, canonicalRoot, "");
+    } catch {
+      return undefined;
     }
   }
 
-  private commitForPath(head: string, filePath: string): Promise<GitCommit | undefined> {
-    const key = `${head}\0${filePath}`;
+  get ignoresPathCase(): boolean {
+    return this.ignoreCase;
+  }
+
+  private async run(arguments_: readonly string[]): Promise<Uint8Array> {
+    return await gitCommands.run(async () => runGit(this.root, this.repositoryRoot, arguments_));
+  }
+
+  private commitForPath(
+    head: string,
+    filePath: string,
+    ignoreCase: boolean,
+  ): Promise<GitCommit | undefined> {
+    const key = `${head}\0${ignoreCase ? "i" : "s"}\0${filePath}`;
     const cached = this.commitCache.get(key);
     if (cached !== undefined) return cached;
 
-    const pathspec = filePath === "" ? "." : `:(literal)${filePath}`;
+    const pathspec = literalPathspec(filePath, ignoreCase);
     const pending = this.run(["log", "-1", "--format=%H%x00%h%x00%ct%x00%s", head, "--", pathspec])
       .then(parseCommit)
       .catch(() => {
@@ -367,10 +468,14 @@ export class GitRepository implements GitMetadataProvider {
     directoryEntries: readonly GitDirectoryEntry[],
   ): Promise<GitDirectoryInfo | undefined> {
     let status: GitStatus;
+    let ignoreCase = false;
     const directoryPath = segments.join("/");
-    const pathspec = directoryPath === "" ? "." : `:(literal)${directoryPath}`;
     try {
       const configuration = await this.run(["config", "--local", "--null", "--list", "--includes"]);
+      ignoreCase =
+        configurationBoolean(configuration, "core.ignorecase") && (await this.filesystemIgnoreCase);
+      this.ignoreCase = ignoreCase;
+      const pathspec = literalPathspec(directoryPath, ignoreCase);
       const output = await this.run([
         ...filterConfigurationOverrides(configuration),
         "status",
@@ -383,7 +488,7 @@ export class GitRepository implements GitMetadataProvider {
         "--",
         pathspec,
       ]);
-      status = parseGitStatus(new TextDecoder().decode(output), this.repositoryPrefix);
+      status = parseGitStatus(new TextDecoder().decode(output), this.repositoryPrefix, ignoreCase);
     } catch {
       return undefined;
     }
@@ -396,35 +501,41 @@ export class GitRepository implements GitMetadataProvider {
     const changes = status.changes
       .filter(
         (change) =>
-          pathIsInside(change.path, directoryPath) ||
-          (change.originalPath !== undefined && pathIsInside(change.originalPath, directoryPath)),
+          pathIsInside(change.path, directoryPath, ignoreCase) ||
+          (change.originalPath !== undefined &&
+            pathIsInside(change.originalPath, directoryPath, ignoreCase)),
       )
       .toSorted((left, right) => left.path.localeCompare(right.path));
     const commit =
-      status.head === undefined ? undefined : await this.commitForPath(status.head, directoryPath);
+      status.head === undefined
+        ? undefined
+        : await this.commitForPath(status.head, directoryPath, ignoreCase);
     const entries = new Map<string, GitEntryInfo>();
     const changesByEntry = new Map<string, GitChange[]>();
     for (const change of changes) {
-      const prefix = directoryPath === "" ? "" : `${directoryPath}/`;
-      const changedPath = change.path.startsWith(prefix) ? change.path.slice(prefix.length) : "";
-      const originalPath = change.originalPath?.startsWith(prefix)
-        ? change.originalPath.slice(prefix.length)
-        : undefined;
+      const changedPath = stripRepositoryPrefix(change.path, directoryPath, ignoreCase) ?? "";
+      const originalPath =
+        change.originalPath === undefined
+          ? undefined
+          : stripRepositoryPrefix(change.originalPath, directoryPath, ignoreCase);
       for (const relativePath of [changedPath, originalPath]) {
         const entryName = relativePath?.split("/", 1)[0];
         if (entryName === undefined || entryName === "") continue;
-        const entryChanges = changesByEntry.get(entryName) ?? [];
+        const entryKey = normalizeGitPath(entryName, ignoreCase);
+        const entryChanges = changesByEntry.get(entryKey) ?? [];
         if (!entryChanges.includes(change)) entryChanges.push(change);
-        changesByEntry.set(entryName, entryChanges);
+        changesByEntry.set(entryKey, entryChanges);
       }
     }
 
     await Promise.all(
       directoryEntries.map(async (entry) => {
         const entryPath = [...segments, entry.name].join("/");
-        const entryChanges = changesByEntry.get(entry.name) ?? [];
+        const entryChanges = changesByEntry.get(normalizeGitPath(entry.name, ignoreCase)) ?? [];
         const entryCommit =
-          status.head === undefined ? undefined : await this.commitForPath(status.head, entryPath);
+          status.head === undefined
+            ? undefined
+            : await this.commitForPath(status.head, entryPath, ignoreCase);
         entries.set(entry.name, {
           changes: entryChanges,
           ...(entryCommit === undefined ? {} : {commit: entryCommit}),
@@ -440,5 +551,191 @@ export class GitRepository implements GitMetadataProvider {
       ...(commit === undefined ? {} : {commit}),
       ...(status.head === undefined ? {} : {head: status.head}),
     };
+  }
+}
+
+function relativeWithin(root: string, candidate: string, ignoreCase = false): string | undefined {
+  const relative = path.relative(root, candidate);
+  if (
+    relative === "" ||
+    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  ) {
+    return relative;
+  }
+  if (!ignoreCase) return undefined;
+  const absoluteRoot = path.resolve(root);
+  const absoluteCandidate = path.resolve(candidate);
+  const normalizedRoot = absoluteRoot.toLowerCase();
+  const normalizedCandidate = absoluteCandidate.toLowerCase();
+  if (normalizedCandidate === normalizedRoot) return "";
+  if (!normalizedCandidate.startsWith(`${normalizedRoot}${path.sep}`)) return undefined;
+  return absoluteCandidate.slice(absoluteRoot.length + 1);
+}
+
+function isWithin(root: string, candidate: string, ignoreCase = false): boolean {
+  return relativeWithin(root, candidate, ignoreCase) !== undefined;
+}
+
+function setBounded<K, V>(map: Map<K, V>, key: K, value: V, maximumSize: number): void {
+  if (!map.has(key) && map.size >= maximumSize) {
+    const oldest = map.keys().next().value;
+    if (oldest !== undefined) map.delete(oldest);
+  }
+  map.set(key, value);
+}
+
+function servedPathForGitPath(
+  gitPath: string,
+  repositoryRoot: string,
+  servedRoot: string,
+  directory: string,
+  segments: readonly string[],
+  ignoreCase: boolean,
+): string | undefined {
+  const absolutePath = path.resolve(repositoryRoot, ...gitPath.split("/"));
+  const servedRelative = relativeWithin(servedRoot, absolutePath, ignoreCase);
+  if (servedRelative === undefined) return undefined;
+  const directoryRelative = relativeWithin(directory, absolutePath, ignoreCase);
+  if (directoryRelative !== undefined) {
+    return [...segments, ...directoryRelative.split(path.sep).filter(Boolean)].join("/");
+  }
+  return servedRelative.split(path.sep).filter(Boolean).join("/");
+}
+
+function mapChangeToServedRoot(
+  change: GitChange,
+  repositoryRoot: string,
+  servedRoot: string,
+  directory: string,
+  segments: readonly string[],
+  ignoreCase: boolean,
+): GitChange | undefined {
+  const mappedPath = servedPathForGitPath(
+    change.path,
+    repositoryRoot,
+    servedRoot,
+    directory,
+    segments,
+    ignoreCase,
+  );
+  const mappedOriginalPath =
+    change.originalPath === undefined
+      ? undefined
+      : servedPathForGitPath(
+          change.originalPath,
+          repositoryRoot,
+          servedRoot,
+          directory,
+          segments,
+          ignoreCase,
+        );
+  if (mappedPath === undefined) {
+    if (mappedOriginalPath === undefined) return undefined;
+    return {
+      path: mappedOriginalPath,
+      ...(change.staged === undefined ? {} : {staged: "deleted" as const}),
+      ...(change.unstaged === undefined ? {} : {unstaged: "deleted" as const}),
+    };
+  }
+  return {
+    ...change,
+    path: mappedPath,
+    ...(mappedOriginalPath === undefined ? {} : {originalPath: mappedOriginalPath}),
+  };
+}
+
+function mapDirectoryInfoToServedRoot(
+  info: GitDirectoryInfo,
+  repositoryRoot: string,
+  servedRoot: string,
+  directory: string,
+  segments: readonly string[],
+  ignoreCase: boolean,
+): GitDirectoryInfo {
+  const mapChange = (change: GitChange): GitChange | undefined =>
+    mapChangeToServedRoot(change, repositoryRoot, servedRoot, directory, segments, ignoreCase);
+  return {
+    ...info,
+    changes: info.changes.map(mapChange).filter((change) => change !== undefined),
+    entries: new Map(
+      [...info.entries].map(([name, entry]) => [
+        name,
+        {
+          ...entry,
+          changes: entry.changes.map(mapChange).filter((change) => change !== undefined),
+        },
+      ]),
+    ),
+  };
+}
+
+export class GitRepositoryResolver implements GitMetadataProvider {
+  private readonly canonicalRoot: Promise<string>;
+  private readonly repositoryRoots = new Map<string, Promise<string | undefined>>();
+  private readonly repositories = new Map<string, Promise<GitRepository | undefined>>();
+
+  constructor(root: string) {
+    this.canonicalRoot = realpath(root);
+  }
+
+  private async repositoryRootFor(directory: string): Promise<string | undefined> {
+    let pending = this.repositoryRoots.get(directory);
+    if (pending === undefined) {
+      pending = discoverRepositoryRoot(directory);
+      setBounded(this.repositoryRoots, directory, pending, maximumCachedDirectories);
+    }
+    const repositoryRoot = await pending;
+    if (this.repositoryRoots.get(directory) === pending) this.repositoryRoots.delete(directory);
+    return repositoryRoot;
+  }
+
+  private async repositoryFor(repositoryRoot: string): Promise<GitRepository | undefined> {
+    let pending = this.repositories.get(repositoryRoot);
+    if (pending === undefined) {
+      pending = GitRepository.openRoot(repositoryRoot);
+      setBounded(this.repositories, repositoryRoot, pending, maximumCachedRepositories);
+    }
+    const repository = await pending;
+    if (repository === undefined && this.repositories.get(repositoryRoot) === pending) {
+      this.repositories.delete(repositoryRoot);
+    }
+    return repository;
+  }
+
+  async directoryInfo(
+    segments: readonly string[],
+    directoryEntries: readonly GitDirectoryEntry[],
+  ): Promise<GitDirectoryInfo | undefined> {
+    let servedRoot: string;
+    let directory: string;
+    try {
+      servedRoot = await this.canonicalRoot;
+      directory = await realpath(path.resolve(servedRoot, ...segments));
+    } catch {
+      return undefined;
+    }
+    if (!isWithin(servedRoot, directory)) return undefined;
+
+    const repositoryRoot = await this.repositoryRootFor(directory);
+    if (repositoryRoot === undefined || !isWithin(repositoryRoot, directory)) return undefined;
+    const repository = await this.repositoryFor(repositoryRoot);
+    if (repository === undefined) return undefined;
+    const repositorySegments = path
+      .relative(repositoryRoot, directory)
+      .split(path.sep)
+      .filter(Boolean);
+    const info = await repository.directoryInfo(repositorySegments, directoryEntries);
+    if (info === undefined) {
+      this.repositories.delete(repositoryRoot);
+      return undefined;
+    }
+    return mapDirectoryInfoToServedRoot(
+      info,
+      repositoryRoot,
+      servedRoot,
+      directory,
+      segments,
+      repository.ignoresPathCase,
+    );
   }
 }

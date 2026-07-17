@@ -82,6 +82,34 @@ describe("application routes", () => {
     expect(body.indexOf("Directory contents")).toBeLessThan(body.indexOf("Demo workspace"));
   });
 
+  test("discovers a repository below a non-repository server root", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "md-workspace-"));
+    temporaryDirectories.push(root);
+    const project = path.join(root, "project");
+    await mkdir(project);
+    await git(project, ["init", "-b", "main"]);
+    await writeFile(path.join(project, "README.md"), "# Nested repository\n");
+    await git(project, ["add", "."]);
+    await git(project, [
+      "-c",
+      "user.name=md test",
+      "-c",
+      "user.email=md@example.com",
+      "commit",
+      "-m",
+      "feat: add nested repository",
+    ]);
+
+    const app = await createApp({root});
+    const workspaceBody = await (await app.request("/")).text();
+    const projectBody = await (await app.request("/project/")).text();
+
+    expect(workspaceBody).not.toContain('class="repo-toolbar"');
+    expect(projectBody).toContain('class="repo-toolbar"');
+    expect(projectBody).toContain("feat: add nested repository");
+    expect(projectBody).toContain('>main</span><span class="item-count">');
+  });
+
   test("renders Git history and staged and unstaged working tree changes", async () => {
     const root = await fixture();
     await git(root, ["init", "-b", "main"]);
