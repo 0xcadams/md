@@ -17,7 +17,15 @@ import rehypeStringify from "rehype-stringify";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
-import {codeToHtml, type BundledLanguage, type BundledTheme} from "shiki";
+import {
+  bundledLanguages,
+  codeToHtml,
+  codeToTokens,
+  getTokenStyleObject,
+  type BundledLanguage,
+  type BundledTheme,
+  type ShikiTransformer,
+} from "shiki";
 import {unified} from "unified";
 import {visit} from "unist-util-visit";
 import type {VFile} from "vfile";
@@ -154,6 +162,41 @@ export interface RenderedMarkdown {
   html: string;
 }
 
+export interface HighlightedToken {
+  content: string;
+  style: string;
+}
+
+export interface HighlightedCode {
+  background: string;
+  foreground: string;
+  lines: readonly (readonly HighlightedToken[])[];
+}
+
+const sourceLineTransformer: ShikiTransformer = {
+  name: "source-lines",
+  pre(element) {
+    const style = typeof element.properties.style === "string" ? element.properties.style : "";
+    const separator = style === "" || style.endsWith(";") ? "" : ";";
+    element.properties.style = `${style}${separator}--line-number-width:${String(this.lines.length).length + 4}ch`;
+  },
+  line(element, line) {
+    element.properties.dataLineNumber = line;
+    element.children.unshift({
+      type: "element",
+      tagName: "a",
+      properties: {
+        ariaLabel: `Line ${line}`,
+        className: ["line-number"],
+        dataLineNumber: line,
+        href: `#L${line}`,
+        id: `L${line}`,
+      },
+      children: [],
+    });
+  },
+};
+
 function createProcessor(wikiIndex: ReadonlyMap<string, string>, theme: BundledTheme) {
   return unified()
     .use(remarkParse)
@@ -210,12 +253,39 @@ export class MarkdownRenderer {
       return await codeToHtml(source, {
         lang: language as BundledLanguage,
         theme,
+        transformers: [sourceLineTransformer],
       });
     } catch {
       return codeToHtml(source, {
         lang: "text",
         theme,
+        transformers: [sourceLineTransformer],
       });
     }
+  }
+
+  async tokenize(
+    source: string,
+    language: string,
+    theme: BundledTheme = defaultCodeTheme.id,
+  ): Promise<HighlightedCode> {
+    const normalizedLanguage = language.trim().toLowerCase();
+    const lang = Object.hasOwn(bundledLanguages, normalizedLanguage)
+      ? (normalizedLanguage as BundledLanguage)
+      : "text";
+    const result = await codeToTokens(source, {lang, theme});
+    return {
+      background: result.bg ?? "transparent",
+      foreground: result.fg ?? "inherit",
+      lines: result.tokens.map((line) =>
+        line.map((token) => {
+          const styles = Object.entries(token.htmlStyle ?? getTokenStyleObject(token))
+            .filter(([name]) => name !== "background-color")
+            .map(([name, value]) => `${name}:${value}`)
+            .join(";");
+          return {content: token.content, style: styles};
+        }),
+      ),
+    };
   }
 }

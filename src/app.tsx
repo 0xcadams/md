@@ -9,6 +9,7 @@ import {accepts} from "hono/accepts";
 import {getCookie} from "hono/cookie";
 import {secureHeaders} from "hono/secure-headers";
 
+import {parseWorkingTreeDiff, type ParsedWorkingTreeDiff} from "./diff.js";
 import {
   contentType,
   encodeUrlPath,
@@ -25,7 +26,10 @@ import {MarkdownRenderer} from "./markdown.js";
 import {resolveCodeTheme, themeCookieName} from "./themes.js";
 import {
   DirectoryPage,
+  DiffPage,
   type FileGitInfo,
+  type HighlightedDiffFile,
+  type HighlightedWorkingTreeDiff,
   MarkdownPage,
   MessagePage,
   type ReadmePanel,
@@ -38,6 +42,60 @@ const imageResponseVary = "Accept, Sec-Fetch-Dest";
 
 function requestTheme(context: Context) {
   return resolveCodeTheme(getCookie(context, themeCookieName));
+}
+
+async function highlightWorkingTreeDiff(
+  diff: ParsedWorkingTreeDiff,
+  markdown: MarkdownRenderer,
+  theme: ReturnType<typeof resolveCodeTheme>,
+): Promise<HighlightedWorkingTreeDiff> {
+  const files = await Promise.all(
+    diff.files.map(async (file): Promise<HighlightedDiffFile> => {
+      const language = languageForFile(file.change.path);
+      let foreground = "inherit";
+      const hunks = await Promise.all(
+        file.hunks.map(async (hunk) => {
+          const oldLines = hunk.lines
+            .filter((line) => line.kind === "context" || line.kind === "deletion")
+            .map((line) => line.content);
+          const newLines = hunk.lines
+            .filter((line) => line.kind === "context" || line.kind === "addition")
+            .map((line) => line.content);
+          const [oldCode, newCode] = await Promise.all([
+            markdown.tokenize(oldLines.join("\n"), language, theme.id),
+            markdown.tokenize(newLines.join("\n"), language, theme.id),
+          ]);
+          foreground = newCode.foreground;
+          let oldIndex = 0;
+          let newIndex = 0;
+          return {
+            ...hunk,
+            lines: hunk.lines.map((line) => {
+              if (line.kind === "deletion") {
+                const tokens = oldCode.lines[oldIndex] ?? [];
+                oldIndex += 1;
+                return {...line, tokens};
+              }
+              if (line.kind === "addition") {
+                const tokens = newCode.lines[newIndex] ?? [];
+                newIndex += 1;
+                return {...line, tokens};
+              }
+              if (line.kind === "context") {
+                oldIndex += 1;
+                const tokens = newCode.lines[newIndex] ?? [];
+                newIndex += 1;
+                return {...line, tokens};
+              }
+              return {...line, tokens: []};
+            }),
+          };
+        }),
+      );
+      return {...file, foreground, hunks};
+    }),
+  );
+  return {...diff, files};
 }
 
 export interface AppOptions {
@@ -279,7 +337,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
     if (relative === "styles.css") {
       return new Response(context.req.method === "HEAD" ? null : (css as unknown as BodyInit), {
         headers: {
-          "Cache-Control": "public, max-age=3600",
+          "Cache-Control": "no-cache",
           "Content-Length": String(css.byteLength),
           "Content-Type": "text/css; charset=utf-8",
         },
@@ -290,7 +348,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
     if (body === undefined) return context.notFound();
     return new Response(context.req.method === "HEAD" ? null : (body as unknown as BodyInit), {
       headers: {
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": "no-cache",
         "Content-Length": String(body.byteLength),
         "Content-Type": contentType(relative),
       },
@@ -313,6 +371,66 @@ export async function createApp(options: AppOptions): Promise<Hono> {
     }
     return await rawFileResponse(context.req.raw, resolved);
   });
+
+  const changesHandler = async (context: Context) => {
+    const theme = requestTheme(context);
+    const requestPath = new URL(context.req.url).pathname;
+    const scopePath = requestPath.slice("/changes".length) || "/";
+    const resolved = await files.resolvePathname(scopePath);
+    if (resolved === undefined) {
+      return context.html(
+        <MessagePage
+          message="The requested changes scope does not exist inside the mounted directory."
+          rootName={files.name}
+          status={404}
+          theme={theme}
+          title="Not found"
+        />,
+        404,
+      );
+    }
+    const directory = resolved.stats.isDirectory();
+    const canonicalPath =
+      resolved.segments.length === 0
+        ? "/changes"
+        : `/changes${encodeUrlPath(resolved.segments, directory)}`;
+    if (requestPath !== canonicalPath) return context.redirect(canonicalPath, 308);
+
+    const gitSegments = directory ? resolved.segments : resolved.segments.slice(0, -1);
+    const workingTreeDiff = await git.workingTreeDiff(gitSegments);
+    if (workingTreeDiff === undefined) {
+      return context.html(
+        <MessagePage
+          message="No Git working tree was found for this path."
+          rootName={files.name}
+          segments={resolved.segments}
+          status={404}
+          theme={theme}
+          title="Changes"
+        />,
+        404,
+      );
+    }
+    const scopedDiff = directory
+      ? workingTreeDiff
+      : {
+          files: workingTreeDiff.files.filter(
+            (file) => file.change.path === resolved.segments.join("/"),
+          ),
+        };
+    const diff = await highlightWorkingTreeDiff(parseWorkingTreeDiff(scopedDiff), markdown, theme);
+    return context.html(
+      <DiffPage
+        diff={diff}
+        directory={directory}
+        rootName={files.name}
+        segments={resolved.segments}
+        theme={theme}
+      />,
+    );
+  };
+  app.on(["GET", "HEAD"], "/changes", changesHandler);
+  app.on(["GET", "HEAD"], "/changes/*", changesHandler);
 
   app.on(["GET", "HEAD"], "*", async (context) => {
     const url = new URL(context.req.url);
@@ -404,9 +522,15 @@ export async function createApp(options: AppOptions): Promise<Hono> {
 
     const fileGitPromise = git
       ?.directoryInfo(resolved.segments.slice(0, -1), [{isDirectory: false, name}])
-      .then((info): FileGitInfo | undefined => {
+      .then((info): {changesUrl?: string; git?: FileGitInfo} => {
         const entry = info?.entries.get(name);
-        if (entry?.commit === undefined) return undefined;
+        const changesUrl =
+          entry !== undefined && entry.changes.length > 0
+            ? `/changes${encodeUrlPath(resolved.segments)}`
+            : undefined;
+        if (entry?.commit === undefined) {
+          return changesUrl === undefined ? {} : {changesUrl};
+        }
         const ref = info?.detached ? info.head : info?.branch;
         const historyUrl =
           info?.repositoryUrl === undefined || ref === undefined
@@ -415,21 +539,26 @@ export async function createApp(options: AppOptions): Promise<Hono> {
                 .split("/")
                 .map(encodeURIComponent)
                 .join("/")}`;
-        return {
+        const fileGit: FileGitInfo = {
           commit: entry.commit,
           ...(historyUrl === undefined ? {} : {historyUrl}),
           ...(info?.repositoryUrl === undefined ? {} : {repositoryUrl: info.repositoryUrl}),
         };
+        return {
+          ...(changesUrl === undefined ? {} : {changesUrl}),
+          git: fileGit,
+        };
       });
 
     if (markdownFile) {
-      const [rendered, fileGit] = await Promise.all([
+      const [rendered, fileInfo] = await Promise.all([
         markdown.render(contents.toString("utf8"), theme.id),
         fileGitPromise,
       ]);
       return context.html(
         <MarkdownPage
-          git={fileGit}
+          changesUrl={fileInfo?.changesUrl}
+          git={fileInfo?.git}
           html={rendered.html}
           name={name}
           rootName={files.name}
@@ -440,13 +569,14 @@ export async function createApp(options: AppOptions): Promise<Hono> {
     }
 
     const language = languageForFile(name);
-    const [highlighted, fileGit] = await Promise.all([
+    const [highlighted, fileInfo] = await Promise.all([
       markdown.highlight(contents.toString("utf8"), language, theme.id),
       fileGitPromise,
     ]);
     return context.html(
       <SourcePage
-        git={fileGit}
+        changesUrl={fileInfo?.changesUrl}
+        git={fileInfo?.git}
         highlighted={highlighted}
         language={language}
         name={name}

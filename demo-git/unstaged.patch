@@ -1,0 +1,19 @@
+diff --git a/.hidden/workflow.yaml b/.hidden/workflow.yaml
+new file mode 100644
+--- /dev/null
++++ b/.hidden/workflow.yaml
+@@ -0,0 +1,2 @@
++demo:
++  file: "demo-files/.hidden/workflow.yaml"
+diff --git a/example.ts b/example.ts
+--- a/example.ts
++++ b/example.ts
+@@ -10 +10 @@
+-console.log(greet({message: "Hello", recipient: "world"}));
++console.log(greet({message: "Hello", recipient: "md"}));
+diff --git a/notes.md b/notes.md
+--- a/notes.md
++++ b/notes.md
+@@ -3 +3 @@
+-Keep project notes here.
++This page demonstrates wiki links and callouts.
