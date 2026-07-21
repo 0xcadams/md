@@ -76,7 +76,8 @@ describe("application routes", () => {
     expect(body).toContain('rel="icon"');
     expect(body).toContain('href="/__md/assets/logo.svg"');
     expect(body).toContain('src="/__md/assets/logo.svg"');
-    expect(body).not.toContain("data-copy-path");
+    expect(body).toContain('data-copy-url=""');
+    expect(body).toContain('aria-label="Copy URL"');
     expect(body).toContain('<img src="./doc/assets/cloudzero.svg" alt="the big picture">');
     expect(body).not.toContain("<thead>");
     expect(body).not.toContain('class="repo-toolbar"');
@@ -179,12 +180,128 @@ describe("application routes", () => {
       expect(fileBody).toContain(">History</a>");
       expect(fileBody).not.toContain('class="commit-date"');
     }
-    expect(markdownBody).toContain('data-copy-path="README.md"');
+    expect(markdownBody).toContain('data-copy-url=""');
     expect(markdownBody).toContain('href="https://github.com/acme/example/commits/main/README.md"');
-    expect(sourceBody).toContain('data-copy-path="src/example.ts"');
+    expect(sourceBody).toContain('data-copy-url=""');
     expect(sourceBody).toContain(
       'href="https://github.com/acme/example/commits/main/src/example.ts"',
     );
+  });
+
+  test("renders a GitHub-style combined working tree diff", async () => {
+    const root = await fixture();
+    await git(root, ["init", "-b", "main"]);
+    await writeFile(path.join(root, "src", "example.ts"), "export const answer = 41;\n");
+    await git(root, ["add", "."]);
+    await git(root, [
+      "-c",
+      "user.name=md test",
+      "-c",
+      "user.email=md@example.com",
+      "commit",
+      "-m",
+      "initial fixture",
+    ]);
+    await writeFile(
+      path.join(root, "src", "example.ts"),
+      'export const answer = 42;\nconst tag = "<script>bad()</script>";\n',
+    );
+    await writeFile(path.join(root, "notes file.txt"), "untracked\n");
+
+    const app = await createApp({root});
+    const [
+      listing,
+      sourceListing,
+      response,
+      nestedResponse,
+      sourceViewer,
+      untrackedViewer,
+      cleanViewer,
+      sourceDiff,
+      untrackedDiff,
+      cleanDiff,
+    ] = await Promise.all([
+      app.request("/"),
+      app.request("/src/"),
+      app.request("/changes"),
+      app.request("/changes/src/"),
+      app.request("/src/example.ts"),
+      app.request("/notes%20file.txt"),
+      app.request("/README.md"),
+      app.request("/changes/src/example.ts"),
+      app.request("/changes/notes%20file.txt"),
+      app.request("/changes/README.md"),
+    ]);
+    const [
+      listingBody,
+      sourceListingBody,
+      body,
+      nestedBody,
+      sourceViewerBody,
+      untrackedViewerBody,
+      cleanViewerBody,
+      sourceDiffBody,
+      untrackedDiffBody,
+      cleanDiffBody,
+    ] = await Promise.all([
+      listing.text(),
+      sourceListing.text(),
+      response.text(),
+      nestedResponse.text(),
+      sourceViewer.text(),
+      untrackedViewer.text(),
+      cleanViewer.text(),
+      sourceDiff.text(),
+      untrackedDiff.text(),
+      cleanDiff.text(),
+    ]);
+
+    expect(listingBody).toContain('href="/changes"');
+    expect(listingBody).toContain(
+      'class="status-count" href="/changes/src/" aria-label="View 1 change in src"',
+    );
+    expect(listingBody).toContain(
+      'class="status-badge status-untracked" href="/changes/notes%20file.txt" aria-label="Untracked"',
+    );
+    expect(sourceListingBody).toContain(
+      'class="status-badge status-modified status-unstaged" href="/changes/src/example.ts" aria-label="Unstaged: modified"',
+    );
+    expect(response.status).toBe(200);
+    expect(body).toContain("Showing 2 changed files");
+    expect(body).toContain('class="diff-file" open');
+    expect(body).toContain('class="diff-line diff-deletion"');
+    expect(body).toContain('class="diff-line diff-addition"');
+    expect(body).toContain('class="diff-word"');
+    expect(body).toContain('aria-label="Diff for src/example.ts"');
+    expect(body).toContain('href="/src/example.ts"');
+    expect(body).toContain("bad()");
+    expect(body).not.toContain("<script>bad()</script>");
+    expect(body).not.toContain('id="diff-');
+    expect(body).not.toContain('class="status-badge status-modified status-unstaged" href=');
+    expect(nestedResponse.status).toBe(200);
+    expect(nestedBody).toContain("Showing 1 changed file");
+    expect(nestedBody).toContain("src/example.ts");
+    expect(nestedBody).not.toContain("notes file.txt");
+    expect(sourceViewerBody).toContain('class="panel-file-name">example.ts</span>');
+    expect(sourceViewerBody).toContain('class="file-actions"');
+    expect(sourceViewerBody).toContain('href="/changes/src/example.ts"');
+    expect(sourceViewerBody.indexOf(">Changes</a>")).toBeLessThan(
+      sourceViewerBody.indexOf(">Raw</a>"),
+    );
+    expect(untrackedViewerBody).toContain('href="/changes/notes%20file.txt"');
+    expect(untrackedViewerBody).not.toContain("file-commit-header");
+    expect(cleanViewerBody).toContain('class="file-actions"');
+    expect(cleanViewerBody).not.toContain('href="/changes/README.md"');
+    expect(sourceDiff.status).toBe(200);
+    expect(sourceDiffBody).toContain("Showing 1 changed file");
+    expect(sourceDiffBody).toContain("src/example.ts");
+    expect(sourceDiffBody).not.toContain("notes file.txt");
+    expect(untrackedDiff.status).toBe(200);
+    expect(untrackedDiffBody).toContain("Showing 1 changed file");
+    expect(untrackedDiffBody).toContain("notes file.txt");
+    expect(untrackedDiffBody).not.toContain("src/example.ts");
+    expect(cleanDiff.status).toBe(200);
+    expect(cleanDiffBody).toContain("This file has no working tree changes.");
   });
 
   test("serves the embedded logo asset", async () => {
@@ -203,8 +320,11 @@ describe("application routes", () => {
     const page = await app.request("/src/example.ts");
     const body = await page.text();
     expect(body).toContain('class="shiki vitesse-dark"');
+    expect(body).toContain('class="line-number"');
+    expect(body).toContain('data-line-number="1"');
+    expect(body).toContain('href="#L1"');
     expect(body).toContain('href="/raw/src/example.ts"');
-    expect(body).toContain('data-copy-path="src/example.ts"');
+    expect(body).toContain('data-copy-url=""');
     expect(body).not.toContain("file-commit-header");
 
     const raw = await app.request("/raw/src/example.ts");
@@ -320,6 +440,7 @@ describe("application routes", () => {
     const body = await response.text();
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-cache");
     expect(body).not.toContain("saturate(");
     expect(body).not.toContain("--shiki-");
   });

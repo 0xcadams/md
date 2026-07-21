@@ -28,6 +28,7 @@ const answer: number = 42
     expect(rendered.html).toContain('type="checkbox"');
     expect(rendered.html).toContain("<del>removed</del>");
     expect(rendered.html).toContain('class="shiki vitesse-dark"');
+    expect(rendered.html).not.toContain('class="line-number"');
     expect(rendered.html).not.toContain("--shiki-");
   });
 
@@ -61,9 +62,12 @@ graph TD
   });
 
   test("highlights source files and falls back for unknown languages", async () => {
-    expect(await renderer.highlight("const value = 1", "typescript")).toContain(
-      'class="shiki vitesse-dark"',
-    );
+    const highlighted = await renderer.highlight("const value = 1\nexport {value}", "typescript");
+    expect(highlighted).toContain('class="shiki vitesse-dark"');
+    expect(highlighted).toContain('class="line-number"');
+    expect(highlighted).toContain('data-line-number="1"');
+    expect(highlighted).toContain('href="#L1"');
+    expect(highlighted).toContain('id="L2"');
     expect(
       await renderer.highlight("const value = 1", "typescript", "github-light-default"),
     ).toContain('class="shiki github-light-default"');

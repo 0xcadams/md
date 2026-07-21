@@ -1,4 +1,4 @@
-import {realpath} from "node:fs/promises";
+import {lstat, readFile, realpath} from "node:fs/promises";
 import path from "node:path";
 
 const gitCommandTimeout = 5_000;
@@ -6,6 +6,7 @@ const maximumGitOutput = 16 * 1024 * 1024;
 const maximumConcurrentGitCommands = 6;
 const maximumCachedDirectories = 256;
 const maximumCachedRepositories = 64;
+const emptyTreeHash = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
 export type GitChangeKind =
   | "added"
@@ -56,11 +57,21 @@ export interface GitDirectoryEntry {
   name: string;
 }
 
+export interface GitFileDiff {
+  change: GitChange;
+  patch: string;
+}
+
+export interface GitWorkingTreeDiff {
+  files: readonly GitFileDiff[];
+}
+
 export interface GitMetadataProvider {
   directoryInfo(
     segments: readonly string[],
     directoryEntries: readonly GitDirectoryEntry[],
   ): Promise<GitDirectoryInfo | undefined>;
+  workingTreeDiff(segments: readonly string[]): Promise<GitWorkingTreeDiff | undefined>;
 }
 
 interface GitStatus {
@@ -68,6 +79,12 @@ interface GitStatus {
   changes: GitChange[];
   detached: boolean;
   head?: string;
+}
+
+interface GitStatusContext {
+  configuration: Uint8Array;
+  ignoreCase: boolean;
+  status: GitStatus;
 }
 
 interface GitHubRemote {
@@ -388,6 +405,7 @@ async function runGit(
   workingDirectory: string,
   safeDirectory: string,
   arguments_: readonly string[],
+  successfulExitCodes: readonly number[] = [0],
 ): Promise<Uint8Array> {
   const process = Bun.spawn(
     [
@@ -422,7 +440,7 @@ async function runGit(
       readLimited(process.stdout, maximumGitOutput, abort),
       readLimited(process.stderr, 64 * 1024, abort),
     ]);
-    if (exitCode !== 0) {
+    if (!successfulExitCodes.includes(exitCode)) {
       throw new Error(new TextDecoder().decode(stderr).trim() || `git exited with ${exitCode}`);
     }
     return stdout;
@@ -508,8 +526,41 @@ export class GitRepository implements GitMetadataProvider {
     return this.ignoreCase;
   }
 
-  private async run(arguments_: readonly string[]): Promise<Uint8Array> {
-    return await gitCommands.run(async () => runGit(this.root, this.repositoryRoot, arguments_));
+  private async run(
+    arguments_: readonly string[],
+    successfulExitCodes?: readonly number[],
+  ): Promise<Uint8Array> {
+    return await gitCommands.run(async () =>
+      runGit(this.root, this.repositoryRoot, arguments_, successfulExitCodes),
+    );
+  }
+
+  private async statusForDirectory(directoryPath: string): Promise<GitStatusContext | undefined> {
+    try {
+      const configuration = await this.run(["config", "--local", "--null", "--list", "--includes"]);
+      const ignoreCase =
+        configurationBoolean(configuration, "core.ignorecase") && (await this.filesystemIgnoreCase);
+      this.ignoreCase = ignoreCase;
+      const output = await this.run([
+        ...filterConfigurationOverrides(configuration),
+        "status",
+        "--porcelain=v2",
+        "--branch",
+        "-z",
+        "--renames",
+        "--untracked-files=all",
+        "--ignore-submodules=dirty",
+        "--",
+        literalPathspec(directoryPath, ignoreCase),
+      ]);
+      return {
+        configuration,
+        ignoreCase,
+        status: parseGitStatus(new TextDecoder().decode(output), this.repositoryPrefix, ignoreCase),
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   private commitForPath(
@@ -590,33 +641,11 @@ export class GitRepository implements GitMetadataProvider {
     segments: readonly string[],
     directoryEntries: readonly GitDirectoryEntry[],
   ): Promise<GitDirectoryInfo | undefined> {
-    let status: GitStatus;
-    let ignoreCase = false;
-    let githubRemote: GitHubRemote | undefined;
     const directoryPath = segments.join("/");
-    try {
-      const configuration = await this.run(["config", "--local", "--null", "--list", "--includes"]);
-      githubRemote = githubRemoteFromConfiguration(configuration);
-      ignoreCase =
-        configurationBoolean(configuration, "core.ignorecase") && (await this.filesystemIgnoreCase);
-      this.ignoreCase = ignoreCase;
-      const pathspec = literalPathspec(directoryPath, ignoreCase);
-      const output = await this.run([
-        ...filterConfigurationOverrides(configuration),
-        "status",
-        "--porcelain=v2",
-        "--branch",
-        "-z",
-        "--renames",
-        "--untracked-files=all",
-        "--ignore-submodules=dirty",
-        "--",
-        pathspec,
-      ]);
-      status = parseGitStatus(new TextDecoder().decode(output), this.repositoryPrefix, ignoreCase);
-    } catch {
-      return undefined;
-    }
+    const statusContext = await this.statusForDirectory(directoryPath);
+    if (statusContext === undefined) return undefined;
+    const {configuration, ignoreCase, status} = statusContext;
+    const githubRemote = githubRemoteFromConfiguration(configuration);
 
     if (status.head !== this.historyHead) {
       this.commitCache.clear();
@@ -685,6 +714,101 @@ export class GitRepository implements GitMetadataProvider {
       ...(status.head === undefined ? {} : {head: status.head}),
       ...(githubRemote === undefined ? {} : {repositoryUrl: githubRemote.repositoryUrl}),
     };
+  }
+
+  private async untrackedPatch(change: GitChange): Promise<string> {
+    const absolutePath = path.resolve(this.root, ...change.path.split("/"));
+    if (!isWithin(this.root, absolutePath, this.ignoreCase)) return "";
+    try {
+      const stats = await lstat(absolutePath);
+      if (!stats.isFile() || stats.isSymbolicLink()) return "";
+      if (stats.size > maximumGitOutput) return "File is too large to display.\n";
+      const contents = await readFile(absolutePath);
+      if (contents.includes(0)) return "Binary file not shown.\n";
+      let source: string;
+      try {
+        source = new TextDecoder("utf-8", {fatal: true}).decode(contents);
+      } catch {
+        return "Binary file not shown.\n";
+      }
+      const hasTrailingNewline = source.endsWith("\n");
+      const lines = source.split(/\r?\n/);
+      if (hasTrailingNewline) lines.pop();
+      const mode = (stats.mode & 0o111) === 0 ? "100644" : "100755";
+      const patch = [
+        `new file mode ${mode}`,
+        "--- /dev/null",
+        "+++ b/file",
+        `@@ -0,0 +1,${lines.length} @@`,
+        ...lines.map((line) => `+${line}`),
+      ];
+      if (!hasTrailingNewline && lines.length > 0) patch.push("\\ No newline at end of file");
+      return `${patch.join("\n")}\n`;
+    } catch {
+      return "";
+    }
+  }
+
+  async workingTreeDiff(segments: readonly string[]): Promise<GitWorkingTreeDiff | undefined> {
+    const directoryPath = segments.join("/");
+    const statusContext = await this.statusForDirectory(directoryPath);
+    if (statusContext === undefined) return undefined;
+    const {configuration, ignoreCase, status} = statusContext;
+    const changes = status.changes
+      .filter(
+        (change) =>
+          pathIsInside(change.path, directoryPath, ignoreCase) ||
+          (change.originalPath !== undefined &&
+            pathIsInside(change.originalPath, directoryPath, ignoreCase)),
+      )
+      .toSorted((left, right) => left.path.localeCompare(right.path));
+    const files: GitFileDiff[] = [];
+    let totalBytes = 0;
+
+    for (const change of changes) {
+      let patch: string;
+      if (change.untracked) {
+        // Untracked files are synthesized so Git cannot follow a symlink outside the served root.
+        // eslint-disable-next-line no-await-in-loop
+        patch = await this.untrackedPatch(change);
+      } else {
+        const paths = [change.path, change.originalPath]
+          .filter(
+            (filePath): filePath is string =>
+              filePath !== undefined && pathIsInside(filePath, directoryPath, ignoreCase),
+          )
+          .map((filePath) =>
+            [this.repositoryPrefix, filePath].filter((part) => part !== "").join("/"),
+          );
+        try {
+          // Commands run sequentially so the aggregate output limit can be enforced.
+          // eslint-disable-next-line no-await-in-loop
+          const output = await this.run([
+            ...filterConfigurationOverrides(configuration),
+            "diff",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--find-renames",
+            "--unified=3",
+            status.head ?? emptyTreeHash,
+            "--",
+            ...paths.map((filePath) => literalPathspec(filePath, ignoreCase)),
+          ]);
+          patch = new TextDecoder().decode(output);
+        } catch {
+          patch = "Diff unavailable.\n";
+        }
+      }
+      totalBytes += Buffer.byteLength(patch);
+      if (totalBytes > maximumGitOutput) {
+        files.push({change, patch: "Diff output limit reached.\n"});
+        break;
+      }
+      files.push({change, patch});
+    }
+
+    return {files};
   }
 }
 
@@ -771,8 +895,10 @@ function mapChangeToServedRoot(
       ...(change.unstaged === undefined ? {} : {unstaged: "deleted" as const}),
     };
   }
+  const mappedChange = {...change};
+  delete mappedChange.originalPath;
   return {
-    ...change,
+    ...mappedChange,
     path: mappedPath,
     ...(mappedOriginalPath === undefined ? {} : {originalPath: mappedOriginalPath}),
   };
@@ -871,5 +997,45 @@ export class GitRepositoryResolver implements GitMetadataProvider {
       segments,
       repository.ignoresPathCase,
     );
+  }
+
+  async workingTreeDiff(segments: readonly string[]): Promise<GitWorkingTreeDiff | undefined> {
+    let servedRoot: string;
+    let directory: string;
+    try {
+      servedRoot = await this.canonicalRoot;
+      directory = await realpath(path.resolve(servedRoot, ...segments));
+    } catch {
+      return undefined;
+    }
+    if (!isWithin(servedRoot, directory)) return undefined;
+
+    const repositoryRoot = await this.repositoryRootFor(directory);
+    if (repositoryRoot === undefined || !isWithin(repositoryRoot, directory)) return undefined;
+    const repository = await this.repositoryFor(repositoryRoot);
+    if (repository === undefined) return undefined;
+    const repositorySegments = path
+      .relative(repositoryRoot, directory)
+      .split(path.sep)
+      .filter(Boolean);
+    const diff = await repository.workingTreeDiff(repositorySegments);
+    if (diff === undefined) {
+      this.repositories.delete(repositoryRoot);
+      return undefined;
+    }
+
+    return {
+      files: diff.files.flatMap((file) => {
+        const change = mapChangeToServedRoot(
+          file.change,
+          repositoryRoot,
+          servedRoot,
+          directory,
+          segments,
+          repository.ignoresPathCase,
+        );
+        return change === undefined ? [] : [{change, patch: file.patch}];
+      }),
+    };
   }
 }

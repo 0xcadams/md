@@ -222,6 +222,34 @@ describe("GitRepository", () => {
     );
     expect(filterRan).toBe(false);
   });
+
+  test("builds one HEAD-to-working-tree diff including untracked files", async () => {
+    const root = await temporaryDirectory();
+    await git(root, ["init", "-b", "main"]);
+    await writeFile(path.join(root, "tracked.txt"), "head\n");
+    await writeFile(path.join(root, "deleted.txt"), "delete me\n");
+    await writeFile(path.join(root, "old.txt"), "rename me\n");
+    await commitAll(root, "initial files");
+
+    await writeFile(path.join(root, "tracked.txt"), "index\n");
+    await git(root, ["add", "tracked.txt"]);
+    await writeFile(path.join(root, "tracked.txt"), "working tree\n");
+    await rm(path.join(root, "deleted.txt"));
+    await git(root, ["mv", "old.txt", "renamed.txt"]);
+    await writeFile(path.join(root, "untracked.txt"), "untracked\n");
+
+    const repository = await GitRepository.open(root);
+    const diff = await repository?.workingTreeDiff([]);
+    const files = new Map(diff?.files.map((file) => [file.change.path, file]));
+
+    expect(files.size).toBe(4);
+    expect(files.get("tracked.txt")?.patch).toContain("-head");
+    expect(files.get("tracked.txt")?.patch).toContain("+working tree");
+    expect(files.get("tracked.txt")?.patch).not.toContain("+index");
+    expect(files.get("deleted.txt")?.patch).toContain("-delete me");
+    expect(files.get("renamed.txt")?.patch).toContain("similarity index 100%");
+    expect(files.get("untracked.txt")?.patch).toContain("+untracked");
+  });
 });
 
 describe("GitRepositoryResolver", () => {
@@ -349,6 +377,31 @@ describe("GitRepositoryResolver", () => {
     );
     expect(removedNestedInfo?.branch).toBe("main");
     expect(removedNestedInfo?.commit?.summary).toBe("feat: add first repository");
+  });
+
+  test("confines working tree diffs to a nested served root", async () => {
+    const repositoryRoot = await temporaryDirectory();
+    const servedRoot = path.join(repositoryRoot, "served");
+    await mkdir(servedRoot);
+    await git(repositoryRoot, ["init", "-b", "main"]);
+    await writeFile(path.join(servedRoot, "inside.txt"), "inside before\n");
+    await writeFile(path.join(repositoryRoot, "outside.txt"), "outside before\n");
+    await commitAll(repositoryRoot, "initial files");
+
+    await writeFile(path.join(servedRoot, "inside.txt"), "inside after\n");
+    await writeFile(path.join(repositoryRoot, "outside.txt"), "OUTSIDE SECRET EDIT\n");
+    await writeFile(path.join(servedRoot, "untracked.txt"), "new inside\n");
+    await symlink(path.join(repositoryRoot, "outside.txt"), path.join(servedRoot, "leak.txt"));
+
+    const resolver = new GitRepositoryResolver(servedRoot);
+    const diff = await resolver.workingTreeDiff([]);
+    const files = new Map(diff?.files.map((file) => [file.change.path, file.patch]));
+
+    expect([...files.keys()]).toEqual(["inside.txt", "leak.txt", "untracked.txt"]);
+    expect(files.get("inside.txt")).toContain("+inside after");
+    expect(files.get("untracked.txt")).toContain("+new inside");
+    expect(files.get("leak.txt")).toBe("");
+    expect([...files.values()].join("\n")).not.toContain("OUTSIDE SECRET EDIT");
   });
 
   test("does not resolve repositories through escaping symlinks", async () => {

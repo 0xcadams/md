@@ -2,9 +2,11 @@
 import {html, raw} from "hono/html";
 import type {PropsWithChildren} from "hono/jsx";
 
+import type {DiffLine, ParsedDiffFile, ParsedWorkingTreeDiff} from "./diff.js";
 import type {DirectoryEntry} from "./filesystem.js";
 import {encodeUrlPath, formatModified, formatSize} from "./filesystem.js";
 import type {GitChange, GitChangeKind, GitCommit, GitDirectoryInfo} from "./git.js";
+import type {HighlightedToken} from "./markdown.js";
 import {codeThemes, type CodeTheme, type ThemeAppearance} from "./themes.js";
 
 const relativeTime = new Intl.RelativeTimeFormat("en", {numeric: "auto"});
@@ -94,11 +96,11 @@ function CodeIcon() {
   );
 }
 
-function CopyIcon(props: {class: string}) {
+function LinkIcon(props: {class: string}) {
   return (
     <LucideIcon class={props.class}>
-      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
     </LucideIcon>
   );
 }
@@ -108,6 +110,34 @@ function CheckIcon(props: {class: string}) {
     <LucideIcon class={props.class}>
       <path d="m20 6-11 11-5-5" />
     </LucideIcon>
+  );
+}
+
+function Button(
+  props: PropsWithChildren<{
+    "aria-label"?: string;
+    class?: string;
+    "data-copy-url"?: string;
+    href?: string;
+    title?: string;
+    type?: "button";
+  }>,
+) {
+  const className = props.class === undefined ? "button" : `button ${props.class}`;
+  return props.href === undefined ? (
+    <button
+      type={props.type ?? "button"}
+      class={className}
+      data-copy-url={props["data-copy-url"]}
+      aria-label={props["aria-label"]}
+      title={props.title}
+    >
+      {props.children}
+    </button>
+  ) : (
+    <a class={className} href={props.href} aria-label={props["aria-label"]} title={props.title}>
+      {props.children}
+    </a>
   );
 }
 
@@ -142,6 +172,14 @@ function ChevronDownIcon() {
   );
 }
 
+function ChevronRightIcon() {
+  return (
+    <LucideIcon class="diff-file-chevron">
+      <path d="m9 18 6-6-6-6" />
+    </LucideIcon>
+  );
+}
+
 function ThemeOptions(props: {appearance: ThemeAppearance; selected: CodeTheme}) {
   return (
     <optgroup label={props.appearance === "light" ? "Light" : "Dark"}>
@@ -171,7 +209,6 @@ function ThemeSelector(props: {theme: CodeTheme}) {
 }
 
 function Breadcrumbs(props: {directory: boolean; rootName: string; segments: readonly string[]}) {
-  const displayedPath = props.segments.join("/");
   return (
     <nav class="breadcrumbs" aria-label="Breadcrumb">
       <a class="repo-name" href="/">
@@ -191,20 +228,18 @@ function Breadcrumbs(props: {directory: boolean; rootName: string; segments: rea
           </>
         );
       })}
-      {displayedPath === "" ? null : (
-        <button
-          type="button"
-          class="button copy-path-button"
-          data-copy-path={displayedPath}
-          aria-label="Copy path"
-          title="Copy path"
-        >
-          <div>
-            <CopyIcon class="copy-path-copy-icon" />
-            <CheckIcon class="copy-path-check-icon" />
-          </div>
-        </button>
-      )}
+      <Button
+        type="button"
+        class="copy-url-button"
+        data-copy-url=""
+        aria-label="Copy URL"
+        title="Copy URL"
+      >
+        <div>
+          <LinkIcon class="copy-url-link-icon" />
+          <CheckIcon class="copy-url-check-icon" />
+        </div>
+      </Button>
     </nav>
   );
 }
@@ -228,7 +263,7 @@ export function Layout(props: PropsWithChildren<LayoutProps>) {
           <meta name="color-scheme" content={props.theme.appearance} />
           <title>{props.title}</title>
           <link rel="icon" href="/__md/assets/logo.svg" type="image/svg+xml" />
-          <link rel="stylesheet" href="/__md/assets/styles.css" />
+          <link rel="stylesheet" href="/__md/assets/styles.css?v=2" />
         </head>
         <body>
           <header class="site-header">
@@ -317,6 +352,7 @@ function changeName(kind: GitChangeKind): string {
 }
 
 function StatusBadge(props: {
+  href?: string | undefined;
   kind?: GitChangeKind;
   location?: "staged" | "unstaged";
   special?: "conflicted" | "untracked";
@@ -332,26 +368,34 @@ function StatusBadge(props: {
       ? `${props.location === "staged" ? "Staged" : "Unstaged"}: ${changeName(props.kind!)}`
       : `${props.special[0]?.toUpperCase()}${props.special.slice(1)}`;
   const tone = props.special ?? props.kind ?? "modified";
-  return (
-    <span
-      class={`status-badge status-${tone} ${props.location === "unstaged" ? "status-unstaged" : ""}`}
-      aria-label={description}
-      role="img"
-      title={description}
-    >
+  const className = [
+    "status-badge",
+    `status-${tone}`,
+    props.location === "unstaged" ? "status-unstaged" : undefined,
+  ]
+    .filter((name) => name !== undefined)
+    .join(" ");
+  return props.href === undefined ? (
+    <span class={className} aria-label={description} role="img" title={description}>
       {code}
     </span>
+  ) : (
+    <a class={className} href={props.href} aria-label={description} title={description}>
+      {code}
+    </a>
   );
 }
 
-function ChangeBadges(props: {change: GitChange}) {
+function ChangeBadges(props: {change: GitChange; href?: string | undefined}) {
   return (
     <span class="status-badges">
-      {props.change.conflicted ? <StatusBadge special="conflicted" /> : null}
-      {props.change.untracked ? <StatusBadge special="untracked" /> : null}
-      {props.change.staged ? <StatusBadge kind={props.change.staged} location="staged" /> : null}
+      {props.change.conflicted ? <StatusBadge href={props.href} special="conflicted" /> : null}
+      {props.change.untracked ? <StatusBadge href={props.href} special="untracked" /> : null}
+      {props.change.staged ? (
+        <StatusBadge href={props.href} kind={props.change.staged} location="staged" />
+      ) : null}
       {props.change.unstaged ? (
-        <StatusBadge kind={props.change.unstaged} location="unstaged" />
+        <StatusBadge href={props.href} kind={props.change.unstaged} location="unstaged" />
       ) : null}
     </span>
   );
@@ -375,6 +419,10 @@ function isDeleted(change: GitChange): boolean {
   return change.staged === "deleted" || change.unstaged === "deleted";
 }
 
+function changesUrl(segments: readonly string[], directory = true): string {
+  return segments.length === 0 ? "/changes" : `/changes${encodeUrlPath(segments, directory)}`;
+}
+
 function ChangesDisclosure(props: {changes: readonly GitChange[]; segments: readonly string[]}) {
   if (props.changes.length === 0) return null;
   return (
@@ -384,7 +432,10 @@ function ChangesDisclosure(props: {changes: readonly GitChange[]; segments: read
         {props.changes.length} change{props.changes.length === 1 ? "" : "s"}
       </summary>
       <div class="changes-menu">
-        <div class="changes-menu-header">Working tree</div>
+        <div class="changes-menu-header">
+          <span>Working tree</span>
+          <a href={changesUrl(props.segments)}>View changes</a>
+        </div>
         <ul>
           {props.changes.map((change) => {
             const currentPath = displayGitPath(change.path, props.segments);
@@ -415,19 +466,29 @@ function ChangesDisclosure(props: {changes: readonly GitChange[]; segments: read
   );
 }
 
-function EntryChanges(props: {changes: readonly GitChange[]; directory: boolean}) {
+function EntryChanges(props: {
+  changes: readonly GitChange[];
+  directory: boolean;
+  name: string;
+  url: string;
+}) {
   if (props.changes.length === 0) return null;
   if (props.directory) {
     return (
-      <span class="status-count" title="Uncommitted changes inside this directory">
+      <a
+        class="status-count"
+        href={props.url}
+        aria-label={`View ${props.changes.length} change${props.changes.length === 1 ? "" : "s"} in ${props.name}`}
+        title="View uncommitted changes inside this directory"
+      >
         {props.changes.length} change{props.changes.length === 1 ? "" : "s"}
-      </span>
+      </a>
     );
   }
   return (
     <span class="entry-statuses">
       {props.changes.map((change) => (
-        <ChangeBadges change={change} />
+        <ChangeBadges change={change} href={props.url} />
       ))}
     </span>
   );
@@ -478,10 +539,10 @@ function FileCommitHeader(props: {git: FileGitInfo | undefined}) {
       <CommitIcon />
       <CommitSummary commit={props.git.commit} repositoryUrl={props.git.repositoryUrl} />
       {props.git.historyUrl === undefined ? null : (
-        <a class="button file-history-link" href={props.git.historyUrl}>
+        <Button class="file-history-link" href={props.git.historyUrl}>
           <HistoryIcon />
           History
-        </a>
+        </Button>
       )}
     </div>
   );
@@ -489,6 +550,20 @@ function FileCommitHeader(props: {git: FileGitInfo | undefined}) {
 
 function rawUrl(segments: readonly string[]): string {
   return `/raw${encodeUrlPath(segments)}`;
+}
+
+function FileActions(props: {changesUrl?: string | undefined; segments: readonly string[]}) {
+  return (
+    <div class="file-actions">
+      {props.changesUrl === undefined ? null : (
+        <Button href={props.changesUrl}>
+          <ChangesIcon />
+          Changes
+        </Button>
+      )}
+      <Button href={rawUrl(props.segments)}>Raw</Button>
+    </div>
+  );
 }
 
 export function DirectoryPage(props: {
@@ -567,10 +642,10 @@ export function DirectoryPage(props: {
             <div class="repo-toolbar-actions">
               <ChangesDisclosure changes={props.git.changes} segments={props.segments} />
               {repositoryUrl === undefined ? null : (
-                <a class="button repository-link" href={repositoryUrl}>
+                <Button class="repository-link" href={repositoryUrl}>
                   <CodeIcon />
                   GitHub
-                </a>
+                </Button>
               )}
             </div>
           )}
@@ -637,7 +712,12 @@ export function DirectoryPage(props: {
                         {entry.isDirectory ? "/" : ""}
                       </a>
                       {gitEntry ? (
-                        <EntryChanges changes={gitEntry.changes} directory={entry.isDirectory} />
+                        <EntryChanges
+                          changes={gitEntry.changes}
+                          directory={entry.isDirectory}
+                          name={entry.name}
+                          url={changesUrl([...props.segments, entry.name], entry.isDirectory)}
+                        />
                       ) : null}
                     </td>
                     {props.git ? (
@@ -692,6 +772,7 @@ export function DirectoryPage(props: {
 }
 
 export function MarkdownPage(props: {
+  changesUrl?: string | undefined;
   git?: FileGitInfo | undefined;
   html: string;
   name: string;
@@ -711,10 +792,8 @@ export function MarkdownPage(props: {
       <section class="document-panel">
         <div class="panel-header">
           <FileIcon />
-          <span>{props.name}</span>
-          <a class="button" href={rawUrl(props.segments)}>
-            Raw
-          </a>
+          <span class="panel-file-name">{props.name}</span>
+          <FileActions changesUrl={props.changesUrl} segments={props.segments} />
         </div>
         <article class="markdown-body">{raw(props.html)}</article>
       </section>
@@ -723,6 +802,7 @@ export function MarkdownPage(props: {
 }
 
 export function SourcePage(props: {
+  changesUrl?: string | undefined;
   git?: FileGitInfo | undefined;
   highlighted: string;
   language: string;
@@ -744,16 +824,207 @@ export function SourcePage(props: {
       <section class="document-panel code-panel">
         <div class="panel-header">
           <FileIcon />
-          <span>{props.name}</span>
+          <span class="panel-file-name">{props.name}</span>
           <span class="file-meta">
             {formatSize(props.size)} &middot; {props.language}
           </span>
-          <a class="button" href={rawUrl(props.segments)}>
-            Raw
-          </a>
+          <FileActions changesUrl={props.changesUrl} segments={props.segments} />
         </div>
         <div class="source-code">{raw(props.highlighted)}</div>
       </section>
+    </Layout>
+  );
+}
+
+export interface HighlightedDiffLine extends DiffLine {
+  tokens: readonly HighlightedToken[];
+}
+
+export interface HighlightedDiffFile extends Omit<ParsedDiffFile, "hunks"> {
+  foreground: string;
+  hunks: readonly {
+    header: string;
+    lines: readonly HighlightedDiffLine[];
+    newCount: number;
+    newStart: number;
+    oldCount: number;
+    oldStart: number;
+  }[];
+}
+
+export interface HighlightedWorkingTreeDiff extends Omit<ParsedWorkingTreeDiff, "files"> {
+  files: readonly HighlightedDiffFile[];
+}
+
+function DiffToken(props: {line: HighlightedDiffLine; offset: number; token: HighlightedToken}) {
+  const range = props.line.intraline;
+  const tokenStart = props.offset;
+  const tokenEnd = tokenStart + props.token.content.length;
+  if (range === undefined || range.end <= tokenStart || range.start >= tokenEnd) {
+    return <span style={props.token.style}>{props.token.content}</span>;
+  }
+  const highlightStart = Math.max(range.start, tokenStart) - tokenStart;
+  const highlightEnd = Math.min(range.end, tokenEnd) - tokenStart;
+  return (
+    <span style={props.token.style}>
+      {props.token.content.slice(0, highlightStart)}
+      <mark class="diff-word">{props.token.content.slice(highlightStart, highlightEnd)}</mark>
+      {props.token.content.slice(highlightEnd)}
+    </span>
+  );
+}
+
+function DiffCode(props: {line: HighlightedDiffLine}) {
+  let offset = 0;
+  return (
+    <code>
+      {props.line.tokens.map((token) => {
+        const tokenOffset = offset;
+        offset += token.content.length;
+        return <DiffToken line={props.line} offset={tokenOffset} token={token} />;
+      })}
+    </code>
+  );
+}
+
+function DiffHunkView(props: {hunk: HighlightedDiffFile["hunks"][number]}) {
+  return (
+    <tbody>
+      <tr class="diff-hunk-header">
+        <td colspan={4}>
+          <code>{props.hunk.header}</code>
+        </td>
+      </tr>
+      {props.hunk.lines.map((line) => {
+        const marker = line.kind === "addition" ? "+" : line.kind === "deletion" ? "-" : " ";
+        return line.kind === "notice" ? (
+          <tr class="diff-line diff-notice">
+            <td colspan={3} />
+            <td class="diff-code-cell">
+              <code>{line.content}</code>
+            </td>
+          </tr>
+        ) : (
+          <tr class={`diff-line diff-${line.kind}`}>
+            <td class="diff-line-number">{line.oldLine}</td>
+            <td class="diff-line-number">{line.newLine}</td>
+            <td class="diff-marker" aria-hidden="true">
+              {marker}
+            </td>
+            <td class="diff-code-cell">
+              <DiffCode line={line} />
+            </td>
+          </tr>
+        );
+      })}
+    </tbody>
+  );
+}
+
+function DiffFileView(props: {file: HighlightedDiffFile}) {
+  const {change} = props.file;
+  const deleted = isDeleted(change);
+  const emptyMessage =
+    props.file.message ??
+    (change.conflicted
+      ? "Conflict diff is not available."
+      : change.originalPath !== undefined
+        ? "File renamed without content changes."
+        : "No content changes.");
+  return (
+    <details class="diff-file" open>
+      <summary class="diff-file-header">
+        <ChevronRightIcon />
+        <FileIcon />
+        <span class="diff-file-path">
+          {change.originalPath === undefined ? (
+            change.path
+          ) : (
+            <>
+              <span class="diff-original-path">{change.originalPath}</span>
+              <span aria-hidden="true"> -&gt; </span>
+              {change.path}
+            </>
+          )}
+        </span>
+        <ChangeBadges change={change} />
+        <span class="diff-file-stats">
+          <span class="diff-additions">+{props.file.additions}</span>
+          <span class="diff-deletions">-{props.file.deletions}</span>
+        </span>
+      </summary>
+      <div class="diff-file-body" style={`--diff-code-fg:${props.file.foreground}`}>
+        {deleted ? null : (
+          <Button class="diff-view-file" href={encodeUrlPath(change.path.split("/"))}>
+            View file
+          </Button>
+        )}
+        {props.file.details.length === 0 ? null : (
+          <div class="diff-file-details">
+            {props.file.details.map((detail) => (
+              <div>{detail}</div>
+            ))}
+          </div>
+        )}
+        {props.file.hunks.length === 0 ? (
+          <div class="diff-empty-file">{emptyMessage}</div>
+        ) : (
+          <div class="diff-table-scroll">
+            <table class="diff-table" aria-label={`Diff for ${change.path}`}>
+              {props.file.hunks.map((hunk) => (
+                <DiffHunkView hunk={hunk} />
+              ))}
+            </table>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+export function DiffPage(props: {
+  diff: HighlightedWorkingTreeDiff;
+  directory: boolean;
+  rootName: string;
+  segments: readonly string[];
+  theme: CodeTheme;
+}) {
+  return (
+    <Layout
+      title="Changes"
+      rootName={props.rootName}
+      segments={props.segments}
+      theme={props.theme}
+      directory={props.directory}
+    >
+      <section class="diff-summary">
+        <div>
+          <h1>Changes</h1>
+          <p>
+            Showing {props.diff.files.length} changed file{props.diff.files.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div class="diff-summary-stats" aria-label="Diff statistics">
+          <span class="diff-additions">+{props.diff.additions}</span>
+          <span class="diff-deletions">-{props.diff.deletions}</span>
+        </div>
+      </section>
+      {props.diff.files.length === 0 ? (
+        <div class="message-panel">
+          <strong>No changes</strong>
+          <p>
+            {props.directory
+              ? "The working tree matches HEAD."
+              : "This file has no working tree changes."}
+          </p>
+        </div>
+      ) : (
+        <div class="diff-files">
+          {props.diff.files.map((file) => (
+            <DiffFileView file={file} />
+          ))}
+        </div>
+      )}
     </Layout>
   );
 }

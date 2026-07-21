@@ -11,7 +11,7 @@
     "build:assets": "bun run scripts/build-assets.ts",
     "build:server": "bun run scripts/build-server.ts",
     "check": "tsc --noEmit && oxlint . && oxfmt --check .",
-    "dev": "bun run build:assets && bun --hot src/index.ts",
+    "dev": "bun run build:assets && bun --watch src/index.ts",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",

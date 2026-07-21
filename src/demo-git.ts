@@ -1,4 +1,10 @@
-import type {GitChange, GitCommit, GitDirectoryInfo, GitMetadataProvider} from "./git.js";
+import type {
+  GitChange,
+  GitCommit,
+  GitDirectoryInfo,
+  GitMetadataProvider,
+  GitWorkingTreeDiff,
+} from "./git.js";
 
 const head = "950ad36b91d5356fe50d84519f92ebbe2b236528";
 
@@ -126,6 +132,25 @@ export const demoGitMetadata: GitMetadataProvider = {
       repositoryUrl: "https://github.com/0xcadams/md",
       tagCount: 4,
       ...(latestCommit === undefined ? {} : {commit: latestCommit}),
+    };
+  },
+  async workingTreeDiff(segments): Promise<GitWorkingTreeDiff> {
+    const directoryPath = segments.join("/");
+    return {
+      files: changes
+        .filter(
+          (change) =>
+            pathIsInside(change.path, directoryPath) ||
+            (change.originalPath !== undefined && pathIsInside(change.originalPath, directoryPath)),
+        )
+        .map((change) => ({
+          change,
+          patch: change.untracked
+            ? "new file mode 100644\n@@ -0,0 +1 @@\n+# New working tree file\n"
+            : change.staged === "deleted" || change.unstaged === "deleted"
+              ? "deleted file mode 100644\n@@ -1 +0,0 @@\n-Removed working tree content\n"
+              : "@@ -1 +1 @@\n-Previous working tree content\n+Updated working tree content\n",
+        })),
     };
   },
 };
