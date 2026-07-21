@@ -7,8 +7,13 @@ RUN bun install --frozen-lockfile
 
 FROM dependencies AS build
 ARG VERSION=dev
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/*
 COPY .oxfmtrc.json .oxlintrc.json tsconfig.json ./
 COPY logo.svg ./
+COPY demo-files ./demo-files
+COPY demo-git ./demo-git
 COPY scripts ./scripts
 COPY src ./src
 RUN MD_BUILD_VERSION="${VERSION}" bun run binary

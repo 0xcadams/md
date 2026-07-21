@@ -80,7 +80,7 @@ async function fileContents(root: string, relative = ""): Promise<Map<string, Bu
 
 async function verifyWorktree(root: string): Promise<void> {
   const [expected, actual] = await Promise.all([fileContents(demoFilesRoot), fileContents(root)]);
-  if ([...expected.keys()].join("\0") !== [...actual.keys()].join("\0")) {
+  if (expected.size !== actual.size) {
     throw new Error("generated demo worktree paths do not match demo-files");
   }
   for (const [filePath, contents] of expected) {
