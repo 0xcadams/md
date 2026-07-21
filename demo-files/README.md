@@ -26,4 +26,4 @@ Welcome to the **md** demo!
 
 ## Source Files
 
-Open [`example.ts`](example.ts) to see a source file rendered with Shiki, or use its **Raw** action to view the original content.
+Open [`example.ts`](example.ts) to try Shiki highlighting, selectable lines, and a per-file diff.

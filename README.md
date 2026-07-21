@@ -35,7 +35,7 @@ docker run --rm \
 ## Features
 
 - GitHub Flavored Markdown and Shiki syntax highlighting
-- GitHub-style listings with commits, worktree status, and rendered READMEs
+- GitHub-style listings, working-tree diffs, and linkable source lines
 - Selectable light and dark Shiki themes
 - Mermaid, wiki links, and GitHub alerts
 - Raw files at `/raw/<path>`
