@@ -50,6 +50,8 @@ bun install
 bun run dev -- ./demo-files
 ```
 
+Regenerate the Vercel demo's Git snapshot with `bun run generate:demo-git`.
+
 Run the checks and build the standalone binary:
 
 ```bash

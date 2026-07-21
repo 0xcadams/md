@@ -1,0 +1,20 @@
+diff --git a/draft.md b/draft.md
+deleted file mode 100644
+--- a/draft.md
++++ /dev/null
+@@ -1,3 +0,0 @@
+-# Draft
+-
+-This file is staged for deletion in the demo.
+diff --git a/example.ts b/example.ts
+--- a/example.ts
++++ b/example.ts
+@@ -7 +7 @@
+-  return `${message}, ${recipient}.`;
++  return `${message}, ${recipient}!`;
+diff --git a/guides/getting-started.md b/guides/getting-started.md
+--- a/guides/getting-started.md
++++ b/guides/getting-started.md
+@@ -3 +3 @@
+-A short tour of md.
++A quick guide to md features.

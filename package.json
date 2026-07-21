@@ -7,16 +7,17 @@
   "type": "module",
   "scripts": {
     "binary": "bun run build && bun run scripts/build-binary.ts",
-    "build": "bun run build:assets && bun run build:server && bun run check",
+    "build": "bun run generate:demo-git && bun run build:assets && bun run build:server && bun run check",
     "build:assets": "bun run scripts/build-assets.ts",
     "build:server": "bun run scripts/build-server.ts",
-    "check": "tsc --noEmit && oxlint . && oxfmt --check .",
-    "dev": "bun run build:assets && bun --watch src/index.ts",
+    "check": "bun run generate:demo-git --check && tsc --noEmit && oxlint . && oxfmt --check .",
+    "dev": "bun run generate:demo-git && bun run build:assets && bun --watch src/index.ts",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
+    "generate:demo-git": "bun run scripts/generate-demo-git.ts",
     "lint": "oxlint .",
     "start": "bun src/index.ts",
-    "test": "bun run build:assets && bun test"
+    "test": "bun run generate:demo-git --check && bun run build:assets && bun test"
   },
   "dependencies": {
     "@shikijs/rehype": "4.3.1",
