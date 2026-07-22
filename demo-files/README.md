@@ -14,11 +14,3 @@ This workspace shows how Peruse renders Markdown, source code, and Git changes.
 
 > [!TIP]
 > The directory listing stays above this README, so you can open another file without returning to the root first.
-
-## Workspace
-
-| Path                                         | What it demonstrates                           |
-| -------------------------------------------- | ---------------------------------------------- |
-| [`example.ts`](example.ts)                   | Syntax highlighting, line links, and Git diffs |
-| [Getting Started](guides/getting-started.md) | Mermaid, wiki links, and GitHub alerts         |
-| [`notes.md`](notes.md)                       | Resolved and unresolved wiki links             |

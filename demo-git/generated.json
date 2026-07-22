@@ -96,12 +96,12 @@
       ],
       "commitCount": 1,
       "detached": false,
-      "head": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
+      "head": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
       "commit": {
         "author": "Peruse demo",
         "date": "2026-01-01T00:00:00.000Z",
-        "hash": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
-        "shortHash": "bf07121",
+        "hash": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
+        "shortHash": "a171b58",
         "summary": "feat: add demo workspace"
       },
       "entries": {
@@ -126,8 +126,8 @@
           "commit": {
             "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
-            "shortHash": "bf07121",
+            "hash": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
+            "shortHash": "a171b58",
             "summary": "feat: add demo workspace"
           }
         },
@@ -142,8 +142,8 @@
           "commit": {
             "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
-            "shortHash": "bf07121",
+            "hash": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
+            "shortHash": "a171b58",
             "summary": "feat: add demo workspace"
           }
         },
@@ -153,8 +153,8 @@
           "commit": {
             "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
-            "shortHash": "bf07121",
+            "hash": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
+            "shortHash": "a171b58",
             "summary": "feat: add demo workspace"
           }
         },
@@ -169,8 +169,8 @@
           "commit": {
             "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
-            "shortHash": "bf07121",
+            "hash": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
+            "shortHash": "a171b58",
             "summary": "feat: add demo workspace"
           }
         },
@@ -180,8 +180,8 @@
           "commit": {
             "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
-            "shortHash": "bf07121",
+            "hash": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
+            "shortHash": "a171b58",
             "summary": "feat: add demo workspace"
           }
         }
@@ -199,7 +199,7 @@
       ],
       "commitCount": 1,
       "detached": false,
-      "head": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
+      "head": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
       "entries": {
         "workflow.yaml": {
           "changes": [
@@ -224,12 +224,12 @@
       ],
       "commitCount": 1,
       "detached": false,
-      "head": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
+      "head": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
       "commit": {
         "author": "Peruse demo",
         "date": "2026-01-01T00:00:00.000Z",
-        "hash": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
-        "shortHash": "bf07121",
+        "hash": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
+        "shortHash": "a171b58",
         "summary": "feat: add demo workspace"
       },
       "entries": {
@@ -244,8 +244,8 @@
           "commit": {
             "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
-            "shortHash": "bf07121",
+            "hash": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
+            "shortHash": "a171b58",
             "summary": "feat: add demo workspace"
           }
         }
@@ -258,12 +258,12 @@
       "changes": [],
       "commitCount": 1,
       "detached": false,
-      "head": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
+      "head": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
       "commit": {
         "author": "Peruse demo",
         "date": "2026-01-01T00:00:00.000Z",
-        "hash": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
-        "shortHash": "bf07121",
+        "hash": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
+        "shortHash": "a171b58",
         "summary": "feat: add demo workspace"
       },
       "entries": {
@@ -273,8 +273,8 @@
           "commit": {
             "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "bf07121919bc12faad0fcd99f13ab7778dea1f6b",
-            "shortHash": "bf07121",
+            "hash": "a171b58ed2a8ccad45e9521de4d6d706a658947b",
+            "shortHash": "a171b58",
             "summary": "feat: add demo workspace"
           }
         }
