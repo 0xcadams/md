@@ -237,3 +237,109 @@ jobs:
             artifacts/md_*.zip \
             artifacts/SHA256SUMS \
             "${OPTIONS[@]}"
+
+  homebrew:
+    name: Publish Homebrew formula
+    if: needs.validate.outputs.prerelease == 'false'
+    needs: [validate, release]
+    environment: homebrew
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release checksums
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          mkdir artifacts
+          gh release download "${RELEASE_TAG}" --pattern SHA256SUMS --dir artifacts
+
+      - name: Generate formula
+        env:
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        shell: bash
+        run: |
+          checksum() {
+            awk -v name="$1" '$2 == name { print $1 }' artifacts/SHA256SUMS
+          }
+
+          DARWIN_ARM64="$(checksum "md_${RELEASE_TAG}_darwin_arm64.tar.gz")"
+          DARWIN_AMD64="$(checksum "md_${RELEASE_TAG}_darwin_amd64.tar.gz")"
+          LINUX_ARM64="$(checksum "md_${RELEASE_TAG}_linux_arm64.tar.gz")"
+          LINUX_AMD64="$(checksum "md_${RELEASE_TAG}_linux_amd64.tar.gz")"
+
+          for value in "${DARWIN_ARM64}" "${DARWIN_AMD64}" "${LINUX_ARM64}" "${LINUX_AMD64}"; do
+            if [[ ! "${value}" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Missing release checksum" >&2
+              exit 1
+            fi
+          done
+
+          mkdir Formula
+          cat > Formula/md.rb <<EOF
+          class Md < Formula
+            desc "Minimal server for viewing Markdown and code"
+            homepage "https://md.cadams.io"
+            version "${VERSION}"
+            license "Unlicense"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/0xcadams/md/releases/download/${RELEASE_TAG}/md_${RELEASE_TAG}_darwin_arm64.tar.gz"
+                sha256 "${DARWIN_ARM64}"
+              end
+
+              on_intel do
+                url "https://github.com/0xcadams/md/releases/download/${RELEASE_TAG}/md_${RELEASE_TAG}_darwin_amd64.tar.gz"
+                sha256 "${DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/0xcadams/md/releases/download/${RELEASE_TAG}/md_${RELEASE_TAG}_linux_arm64.tar.gz"
+                sha256 "${LINUX_ARM64}"
+              end
+
+              on_intel do
+                url "https://github.com/0xcadams/md/releases/download/${RELEASE_TAG}/md_${RELEASE_TAG}_linux_amd64.tar.gz"
+                sha256 "${LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "md"
+            end
+
+            test do
+              assert_equal "md v#{version}", shell_output("#{bin}/md --version").strip
+            end
+          end
+          EOF
+
+          ruby -c Formula/md.rb
+
+      - name: Publish formula
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        shell: bash
+        run: |
+          CONTENT="$(base64 -w 0 Formula/md.rb)"
+          SHA="$(gh api repos/0xcadams/homebrew-tap/contents/Formula/md.rb --jq .sha 2>/dev/null || true)"
+
+          if [ -n "${SHA}" ]; then
+            gh api repos/0xcadams/homebrew-tap/contents/Formula/md.rb \
+              --method PUT \
+              -f message="md ${VERSION}" \
+              -f content="${CONTENT}" \
+              -f sha="${SHA}"
+          else
+            gh api repos/0xcadams/homebrew-tap/contents/Formula/md.rb \
+              --method PUT \
+              -f message="md ${VERSION}" \
+              -f content="${CONTENT}"
+          fi
