@@ -19,7 +19,7 @@ function effectiveTheme(): Theme {
 }
 
 themeSelector?.addEventListener("change", () => {
-  document.cookie = `md-code-theme=${encodeURIComponent(themeSelector.value)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  document.cookie = `peruse-code-theme=${encodeURIComponent(themeSelector.value)}; Path=/; Max-Age=31536000; SameSite=Lax`;
   window.location.reload();
 });
 
@@ -105,7 +105,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 if (diagrams.length > 0) {
-  const mermaidModule = new URL("/__md/assets/mermaid.js", window.location.origin).href;
+  const mermaidModule = new URL("/__peruse/assets/mermaid.js", window.location.origin).href;
   void import(mermaidModule).then(async (module: typeof import("./mermaid-client.js")) => {
     await module.renderMermaid(diagrams, effectiveTheme());
   });

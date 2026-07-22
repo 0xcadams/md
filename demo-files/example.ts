@@ -7,4 +7,4 @@ export function greet({message, recipient}: Greeting): string {
   return `${message}, ${recipient}!`;
 }
 
-console.log(greet({message: "Hello", recipient: "md"}));
+console.log(greet({message: "Hello", recipient: "Peruse"}));

@@ -22,14 +22,14 @@
             "staged": "modified",
             "unstaged": "modified"
           },
-          "patch": "diff --git a/example.ts b/example.ts\nindex 27ff169..cf9fb01 100644\n--- a/example.ts\n+++ b/example.ts\n@@ -4,7 +4,7 @@ export interface Greeting {\n }\n \n export function greet({message, recipient}: Greeting): string {\n-  return `${message}, ${recipient}.`;\n+  return `${message}, ${recipient}!`;\n }\n \n-console.log(greet({message: \"Hello\", recipient: \"world\"}));\n+console.log(greet({message: \"Hello\", recipient: \"md\"}));\n"
+          "patch": "diff --git a/example.ts b/example.ts\nindex 27ff169..0ad681a 100644\n--- a/example.ts\n+++ b/example.ts\n@@ -4,7 +4,7 @@ export interface Greeting {\n }\n \n export function greet({message, recipient}: Greeting): string {\n-  return `${message}, ${recipient}.`;\n+  return `${message}, ${recipient}!`;\n }\n \n-console.log(greet({message: \"Hello\", recipient: \"world\"}));\n+console.log(greet({message: \"Hello\", recipient: \"Peruse\"}));\n"
         },
         {
           "change": {
             "path": "guides/getting-started.md",
             "staged": "modified"
           },
-          "patch": "diff --git a/guides/getting-started.md b/guides/getting-started.md\nindex effb82e..345bfa3 100644\n--- a/guides/getting-started.md\n+++ b/guides/getting-started.md\n@@ -1,6 +1,6 @@\n # Getting Started\n \n-A short tour of md.\n+A quick guide to md features.\n \n ## Mermaid Diagrams\n \n"
+          "patch": "diff --git a/guides/getting-started.md b/guides/getting-started.md\nindex 3075960..f7662c6 100644\n--- a/guides/getting-started.md\n+++ b/guides/getting-started.md\n@@ -1,6 +1,6 @@\n # Getting Started\n \n-A short tour of Peruse.\n+A quick guide to Peruse features.\n \n ## Mermaid Diagrams\n \n"
         },
         {
           "change": {
@@ -58,7 +58,7 @@
             "path": "guides/getting-started.md",
             "staged": "modified"
           },
-          "patch": "diff --git a/guides/getting-started.md b/guides/getting-started.md\nindex effb82e..345bfa3 100644\n--- a/guides/getting-started.md\n+++ b/guides/getting-started.md\n@@ -1,6 +1,6 @@\n # Getting Started\n \n-A short tour of md.\n+A quick guide to md features.\n \n ## Mermaid Diagrams\n \n"
+          "patch": "diff --git a/guides/getting-started.md b/guides/getting-started.md\nindex 3075960..f7662c6 100644\n--- a/guides/getting-started.md\n+++ b/guides/getting-started.md\n@@ -1,6 +1,6 @@\n # Getting Started\n \n-A short tour of Peruse.\n+A quick guide to Peruse features.\n \n ## Mermaid Diagrams\n \n"
         }
       ]
     },
@@ -96,12 +96,12 @@
       ],
       "commitCount": 1,
       "detached": false,
-      "head": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
+      "head": "91d368082232ef36230cfc3859e3170aed3a3bb5",
       "commit": {
-        "author": "md demo",
+        "author": "Peruse demo",
         "date": "2026-01-01T00:00:00.000Z",
-        "hash": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
-        "shortHash": "242b6fe",
+        "hash": "91d368082232ef36230cfc3859e3170aed3a3bb5",
+        "shortHash": "91d3680",
         "summary": "feat: add demo workspace"
       },
       "entries": {
@@ -124,10 +124,10 @@
           ],
           "repositoryPath": "example.ts",
           "commit": {
-            "author": "md demo",
+            "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
-            "shortHash": "242b6fe",
+            "hash": "91d368082232ef36230cfc3859e3170aed3a3bb5",
+            "shortHash": "91d3680",
             "summary": "feat: add demo workspace"
           }
         },
@@ -140,10 +140,10 @@
           ],
           "repositoryPath": "guides",
           "commit": {
-            "author": "md demo",
+            "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
-            "shortHash": "242b6fe",
+            "hash": "91d368082232ef36230cfc3859e3170aed3a3bb5",
+            "shortHash": "91d3680",
             "summary": "feat: add demo workspace"
           }
         },
@@ -151,10 +151,10 @@
           "changes": [],
           "repositoryPath": "notes",
           "commit": {
-            "author": "md demo",
+            "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
-            "shortHash": "242b6fe",
+            "hash": "91d368082232ef36230cfc3859e3170aed3a3bb5",
+            "shortHash": "91d3680",
             "summary": "feat: add demo workspace"
           }
         },
@@ -167,10 +167,10 @@
           ],
           "repositoryPath": "notes.md",
           "commit": {
-            "author": "md demo",
+            "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
-            "shortHash": "242b6fe",
+            "hash": "91d368082232ef36230cfc3859e3170aed3a3bb5",
+            "shortHash": "91d3680",
             "summary": "feat: add demo workspace"
           }
         },
@@ -178,10 +178,10 @@
           "changes": [],
           "repositoryPath": "README.md",
           "commit": {
-            "author": "md demo",
+            "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
-            "shortHash": "242b6fe",
+            "hash": "91d368082232ef36230cfc3859e3170aed3a3bb5",
+            "shortHash": "91d3680",
             "summary": "feat: add demo workspace"
           }
         }
@@ -199,7 +199,7 @@
       ],
       "commitCount": 1,
       "detached": false,
-      "head": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
+      "head": "91d368082232ef36230cfc3859e3170aed3a3bb5",
       "entries": {
         "workflow.yaml": {
           "changes": [
@@ -224,12 +224,12 @@
       ],
       "commitCount": 1,
       "detached": false,
-      "head": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
+      "head": "91d368082232ef36230cfc3859e3170aed3a3bb5",
       "commit": {
-        "author": "md demo",
+        "author": "Peruse demo",
         "date": "2026-01-01T00:00:00.000Z",
-        "hash": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
-        "shortHash": "242b6fe",
+        "hash": "91d368082232ef36230cfc3859e3170aed3a3bb5",
+        "shortHash": "91d3680",
         "summary": "feat: add demo workspace"
       },
       "entries": {
@@ -242,10 +242,10 @@
           ],
           "repositoryPath": "guides/getting-started.md",
           "commit": {
-            "author": "md demo",
+            "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
-            "shortHash": "242b6fe",
+            "hash": "91d368082232ef36230cfc3859e3170aed3a3bb5",
+            "shortHash": "91d3680",
             "summary": "feat: add demo workspace"
           }
         }
@@ -258,12 +258,12 @@
       "changes": [],
       "commitCount": 1,
       "detached": false,
-      "head": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
+      "head": "91d368082232ef36230cfc3859e3170aed3a3bb5",
       "commit": {
-        "author": "md demo",
+        "author": "Peruse demo",
         "date": "2026-01-01T00:00:00.000Z",
-        "hash": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
-        "shortHash": "242b6fe",
+        "hash": "91d368082232ef36230cfc3859e3170aed3a3bb5",
+        "shortHash": "91d3680",
         "summary": "feat: add demo workspace"
       },
       "entries": {
@@ -271,10 +271,10 @@
           "changes": [],
           "repositoryPath": "notes/deep-notes.md",
           "commit": {
-            "author": "md demo",
+            "author": "Peruse demo",
             "date": "2026-01-01T00:00:00.000Z",
-            "hash": "242b6feb455a2fe494c5c7209d1550ea17c2a5f3",
-            "shortHash": "242b6fe",
+            "hash": "91d368082232ef36230cfc3859e3170aed3a3bb5",
+            "shortHash": "91d3680",
             "summary": "feat: add demo workspace"
           }
         }

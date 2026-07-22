@@ -31,7 +31,7 @@ async function git(root: string, arguments_: readonly string[]): Promise<void> {
 }
 
 async function fixture(): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), "md-app-"));
+  const root = await mkdtemp(path.join(tmpdir(), "peruse-app-"));
   temporaryDirectories.push(root);
   await mkdir(path.join(root, "src"));
   await mkdir(path.join(root, "doc", "assets"), {recursive: true});
@@ -74,8 +74,8 @@ describe("application routes", () => {
     expect(body).toContain('value="github-dark-default"');
     expect(body).toContain('value="vitesse-dark" selected');
     expect(body).toContain('rel="icon"');
-    expect(body).toContain('href="/__md/assets/logo.svg"');
-    expect(body).toContain('src="/__md/assets/logo.svg"');
+    expect(body).toContain('href="/__peruse/assets/logo.svg"');
+    expect(body).toContain('src="/__peruse/assets/logo.svg"');
     expect(body).toContain('data-copy-url=""');
     expect(body).toContain('aria-label="Copy URL"');
     expect(body).toContain('<img src="./doc/assets/cloudzero.svg" alt="the big picture">');
@@ -85,7 +85,7 @@ describe("application routes", () => {
   });
 
   test("discovers a repository below a non-repository server root", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "md-workspace-"));
+    const root = await mkdtemp(path.join(tmpdir(), "peruse-workspace-"));
     temporaryDirectories.push(root);
     const project = path.join(root, "project");
     await mkdir(project);
@@ -94,9 +94,9 @@ describe("application routes", () => {
     await git(project, ["add", "."]);
     await git(project, [
       "-c",
-      "user.name=md test",
+      "user.name=Peruse test",
       "-c",
-      "user.email=md@example.com",
+      "user.email=peruse@example.com",
       "commit",
       "-m",
       "feat: add nested repository",
@@ -120,9 +120,9 @@ describe("application routes", () => {
     await git(root, ["add", "."]);
     await git(root, [
       "-c",
-      "user.name=md test",
+      "user.name=Peruse test",
       "-c",
-      "user.email=md@example.com",
+      "user.email=peruse@example.com",
       "commit",
       "-m",
       "initial fixture",
@@ -150,7 +150,7 @@ describe("application routes", () => {
     expect(body).toContain('href="https://github.com/acme/example/commits/main"');
     expect(body).toContain('href="https://github.com/acme/example/commit/');
     expect(body).toContain('class="button repository-link" href="https://github.com/acme/example"');
-    expect(body).toContain('<span class="commit-author">md test</span>');
+    expect(body).toContain('<span class="commit-author">Peruse test</span>');
     expect(body).toContain('class="commit-separator" aria-hidden="true">\u00b7</span><time');
     expect(body).not.toContain('class="commit-date"');
     expect(body).not.toContain('<td class="entry-updated"><a');
@@ -167,7 +167,7 @@ describe("application routes", () => {
 
     for (const fileBody of [markdownBody, sourceBody]) {
       expect(fileBody).toContain('class="list-header git-list-header file-commit-header"');
-      expect(fileBody).toContain('<span class="commit-author">md test</span>');
+      expect(fileBody).toContain('<span class="commit-author">Peruse test</span>');
       expect(fileBody).toContain(
         'class="commit-summary" href="https://github.com/acme/example/commit/',
       );
@@ -195,9 +195,9 @@ describe("application routes", () => {
     await git(root, ["add", "."]);
     await git(root, [
       "-c",
-      "user.name=md test",
+      "user.name=Peruse test",
       "-c",
-      "user.email=md@example.com",
+      "user.email=peruse@example.com",
       "commit",
       "-m",
       "initial fixture",
@@ -306,12 +306,12 @@ describe("application routes", () => {
 
   test("serves the embedded logo asset", async () => {
     const app = await createApp({assets: embeddedAssets, root: await fixture()});
-    const response = await app.request("/__md/assets/logo.svg");
+    const response = await app.request("/__peruse/assets/logo.svg");
     const body = await response.text();
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/svg+xml");
-    expect(body).toContain('<title id="title">md</title>');
+    expect(body).toContain('<title id="title">Peruse</title>');
     expect(body).not.toContain("<text");
   });
 
@@ -419,7 +419,7 @@ describe("application routes", () => {
   test("renders the selected Shiki theme from a validated cookie", async () => {
     const app = await createApp({root: await fixture()});
     const selected = await app.request("/src/example.ts", {
-      headers: {Cookie: "md-code-theme=catppuccin-mocha"},
+      headers: {Cookie: "peruse-code-theme=catppuccin-mocha"},
     });
     const selectedBody = await selected.text();
 
@@ -429,14 +429,14 @@ describe("application routes", () => {
     expect(selectedBody).toContain('value="catppuccin-mocha" selected');
 
     const fallback = await app.request("/", {
-      headers: {Cookie: "md-code-theme=not-a-theme"},
+      headers: {Cookie: "peruse-code-theme=not-a-theme"},
     });
     expect(await fallback.text()).toContain('data-code-theme="vitesse-dark"');
   });
 
   test("does not customize Shiki token colors", async () => {
     const app = await createApp({assets: embeddedAssets, root: await fixture()});
-    const response = await app.request("/__md/assets/styles.css");
+    const response = await app.request("/__peruse/assets/styles.css");
     const body = await response.text();
 
     expect(response.status).toBe(200);
@@ -487,7 +487,7 @@ describe("application routes", () => {
 
   test("provides health, method, and security responses", async () => {
     const app = await createApp({root: await fixture()});
-    const health = await app.request("/__md/health");
+    const health = await app.request("/__peruse/health");
     expect(await health.text()).toBe("ok\n");
     expect(health.headers.get("x-frame-options")).toBe("DENY");
 
@@ -495,12 +495,12 @@ describe("application routes", () => {
     expect(disallowed.status).toBe(405);
     expect(disallowed.headers.get("allow")).toBe("GET, HEAD");
 
-    expect((await app.request("/__md/assets/toString")).status).toBe(404);
+    expect((await app.request("/__peruse/assets/toString")).status).toBe(404);
   });
 
   test("does not expose symlinks outside the root", async () => {
     const root = await fixture();
-    const outside = await mkdtemp(path.join(tmpdir(), "md-secret-"));
+    const outside = await mkdtemp(path.join(tmpdir(), "peruse-secret-"));
     temporaryDirectories.push(outside);
     await writeFile(path.join(outside, "secret.txt"), "secret");
     await symlink(path.join(outside, "secret.txt"), path.join(root, "secret.txt"));

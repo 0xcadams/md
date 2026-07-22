@@ -15,7 +15,7 @@ import {
 const temporaryDirectories: string[] = [];
 
 async function temporaryDirectory(): Promise<string> {
-  const directory = await mkdtemp(path.join(tmpdir(), "md-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "peruse-"));
   temporaryDirectories.push(directory);
   return directory;
 }

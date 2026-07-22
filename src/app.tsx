@@ -37,7 +37,7 @@ import {
 } from "./views.js";
 
 const maximumRenderedFileSize = 5 * 1024 * 1024;
-const assetPrefix = "/__md/assets/";
+const assetPrefix = "/__peruse/assets/";
 const imageResponseVary = "Accept, Sec-Fetch-Dest";
 
 function requestTheme(context: Context) {
@@ -330,9 +330,9 @@ export async function createApp(options: AppOptions): Promise<Hono> {
     );
   });
 
-  app.get("/__md/health", (context) => context.text("ok\n"));
+  app.get("/__peruse/health", (context) => context.text("ok\n"));
 
-  app.on(["GET", "HEAD"], "/__md/assets/*", async (context) => {
+  app.on(["GET", "HEAD"], "/__peruse/assets/*", async (context) => {
     const relative = context.req.path.slice(assetPrefix.length);
     if (relative === "styles.css") {
       return new Response(context.req.method === "HEAD" ? null : (css as unknown as BodyInit), {

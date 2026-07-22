@@ -67,27 +67,27 @@ jobs:
             runner: ubuntu-latest
             os: linux
             arch: amd64
-            executable: md
+            executable: peruse
           - target: bun-linux-arm64
             runner: ubuntu-latest
             os: linux
             arch: arm64
-            executable: md
+            executable: peruse
           - target: bun-darwin-x64
             runner: macos-latest
             os: darwin
             arch: amd64
-            executable: md
+            executable: peruse
           - target: bun-darwin-arm64
             runner: macos-latest
             os: darwin
             arch: arm64
-            executable: md
+            executable: peruse
           - target: bun-windows-x64-baseline
             runner: ubuntu-latest
             os: windows
             arch: amd64
-            executable: md.exe
+            executable: peruse.exe
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -103,16 +103,16 @@ jobs:
 
       - name: Build executable
         env:
-          MD_BUILD_VERSION: ${{ needs.validate.outputs.tag }}
-          MD_OUTFILE: dist/${{ matrix.executable }}
-          MD_TARGET: ${{ matrix.target }}
+          PERUSE_BUILD_VERSION: ${{ needs.validate.outputs.tag }}
+          PERUSE_OUTFILE: dist/${{ matrix.executable }}
+          PERUSE_TARGET: ${{ matrix.target }}
         run: bun run binary
 
       - name: Ad-hoc sign macOS executable
         if: matrix.os == 'darwin'
         run: |
-          codesign --force --sign - dist/md
-          codesign --verify --deep --strict dist/md
+          codesign --force --sign - dist/peruse
+          codesign --verify --deep --strict dist/peruse
 
       - name: Package executable
         env:
@@ -122,7 +122,7 @@ jobs:
           RELEASE_TAG: ${{ needs.validate.outputs.tag }}
         shell: bash
         run: |
-          ARCHIVE="md_${RELEASE_TAG}_${RELEASE_OS}_${RELEASE_ARCH}"
+          ARCHIVE="peruse_${RELEASE_TAG}_${RELEASE_OS}_${RELEASE_ARCH}"
           mkdir "${ARCHIVE}"
           cp "dist/${RELEASE_EXECUTABLE}" README.md LICENSE "${ARCHIVE}/"
           if [ "${RELEASE_OS}" = "windows" ]; then
@@ -133,10 +133,10 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: md_${{ matrix.os }}_${{ matrix.arch }}
+          name: peruse_${{ matrix.os }}_${{ matrix.arch }}
           path: |
-            md_*.tar.gz
-            md_*.zip
+            peruse_*.tar.gz
+            peruse_*.zip
 
   image:
     name: Publish container image
@@ -213,12 +213,12 @@ jobs:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
-          pattern: md_*
+          pattern: peruse_*
           merge-multiple: true
 
       - name: Generate checksums
         working-directory: artifacts
-        run: sha256sum md_* > SHA256SUMS
+        run: sha256sum peruse_* > SHA256SUMS
 
       - name: Create tag and publish GitHub release
         env:
@@ -233,7 +233,113 @@ jobs:
             OPTIONS+=(--prerelease)
           fi
           gh release create "${RELEASE_TAG}" \
-            artifacts/md_*.tar.gz \
-            artifacts/md_*.zip \
+            artifacts/peruse_*.tar.gz \
+            artifacts/peruse_*.zip \
             artifacts/SHA256SUMS \
             "${OPTIONS[@]}"
+
+  homebrew:
+    name: Publish Homebrew formula
+    if: needs.validate.outputs.prerelease == 'false'
+    needs: [validate, release]
+    environment: homebrew
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release checksums
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          mkdir artifacts
+          gh release download "${RELEASE_TAG}" --pattern SHA256SUMS --dir artifacts
+
+      - name: Generate formula
+        env:
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        shell: bash
+        run: |
+          checksum() {
+            awk -v name="$1" '$2 == name { print $1 }' artifacts/SHA256SUMS
+          }
+
+          DARWIN_ARM64="$(checksum "peruse_${RELEASE_TAG}_darwin_arm64.tar.gz")"
+          DARWIN_AMD64="$(checksum "peruse_${RELEASE_TAG}_darwin_amd64.tar.gz")"
+          LINUX_ARM64="$(checksum "peruse_${RELEASE_TAG}_linux_arm64.tar.gz")"
+          LINUX_AMD64="$(checksum "peruse_${RELEASE_TAG}_linux_amd64.tar.gz")"
+
+          for value in "${DARWIN_ARM64}" "${DARWIN_AMD64}" "${LINUX_ARM64}" "${LINUX_AMD64}"; do
+            if [[ ! "${value}" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Missing release checksum" >&2
+              exit 1
+            fi
+          done
+
+          mkdir Formula
+          cat > Formula/peruse.rb <<EOF
+          class Peruse < Formula
+            desc "Minimal server for viewing Markdown and code"
+            homepage "https://peruse.cadams.io"
+            version "${VERSION}"
+            license "Unlicense"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/0xcadams/peruse/releases/download/${RELEASE_TAG}/peruse_${RELEASE_TAG}_darwin_arm64.tar.gz"
+                sha256 "${DARWIN_ARM64}"
+              end
+
+              on_intel do
+                url "https://github.com/0xcadams/peruse/releases/download/${RELEASE_TAG}/peruse_${RELEASE_TAG}_darwin_amd64.tar.gz"
+                sha256 "${DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/0xcadams/peruse/releases/download/${RELEASE_TAG}/peruse_${RELEASE_TAG}_linux_arm64.tar.gz"
+                sha256 "${LINUX_ARM64}"
+              end
+
+              on_intel do
+                url "https://github.com/0xcadams/peruse/releases/download/${RELEASE_TAG}/peruse_${RELEASE_TAG}_linux_amd64.tar.gz"
+                sha256 "${LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "peruse"
+            end
+
+            test do
+              assert_equal "peruse v#{version}", shell_output("#{bin}/peruse --version").strip
+            end
+          end
+          EOF
+
+          ruby -c Formula/peruse.rb
+
+      - name: Publish formula
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        shell: bash
+        run: |
+          CONTENT="$(base64 -w 0 Formula/peruse.rb)"
+          SHA="$(gh api repos/0xcadams/homebrew-tap/contents/Formula/peruse.rb --jq .sha 2>/dev/null || true)"
+
+          if [ -n "${SHA}" ]; then
+            gh api repos/0xcadams/homebrew-tap/contents/Formula/peruse.rb \
+              --method PUT \
+              -f message="peruse ${VERSION}" \
+              -f content="${CONTENT}" \
+              -f sha="${SHA}"
+          else
+            gh api repos/0xcadams/homebrew-tap/contents/Formula/peruse.rb \
+              --method PUT \
+              -f message="peruse ${VERSION}" \
+              -f content="${CONTENT}"
+          fi

@@ -1,8 +1,8 @@
-# `md`
+# Peruse
 
-Welcome to the **md** demo!
+Welcome to the **Peruse** demo!
 
-[View the project on GitHub](https://github.com/0xcadams/md).
+[View the project on GitHub](https://github.com/0xcadams/peruse).
 
 ## Features
 
