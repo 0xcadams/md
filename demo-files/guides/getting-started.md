@@ -1,12 +1,12 @@
 # Getting Started
 
-A quick guide to md features.
+A quick guide to Peruse features.
 
 ## Mermaid Diagrams
 
 ```mermaid
 graph LR
-    A[Markdown Files] --> B(md)
+    A[Markdown Files] --> B(Peruse)
     B --> C{File Type?}
     C -->|.md| D[Rendered HTML]
     C -->|other| E[Served as-is]

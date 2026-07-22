@@ -25,7 +25,7 @@ describe("parseConfig", () => {
   });
 
   test("reads container-friendly environment values", () => {
-    const config = parseConfig([], {MD_HOST: "::", PORT: "9000"}, "/tmp");
+    const config = parseConfig([], {PERUSE_HOST: "::", PORT: "9000"}, "/tmp");
     expect(config.host).toBe("::");
     expect(config.port).toBe(9000);
   });

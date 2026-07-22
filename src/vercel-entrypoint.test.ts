@@ -9,14 +9,14 @@ describe("Vercel entrypoint", () => {
 
     expect(response.status).toBe(200);
     expect(body).toContain("Directory contents");
-    expect(body).toContain("Welcome to the <strong>md</strong> demo!");
+    expect(body).toContain("Welcome to the <strong>Peruse</strong> demo!");
     expect(body).toContain('href="/example.ts"');
     expect(body).toContain('class="repo-toolbar"');
     expect(body).toContain('title="Current branch"');
     expect(body).toContain("<strong>2</strong> Branches");
     expect(body).toContain("<strong>1</strong> Tag");
     expect(body).toContain("1 Commit");
-    expect(body).toContain("md demo");
+    expect(body).toContain("Peruse demo");
     expect(body).toContain("feat: add demo workspace");
     expect(body).not.toContain('class="button repository-link"');
     expect(body).not.toContain('class="entry-commit">Last commit');
@@ -54,7 +54,7 @@ describe("Vercel entrypoint", () => {
     expect(body).toContain("Showing 1 changed file");
     expect(body).toContain('aria-label="Diff for example.ts"');
     expect(text).toContain("recipient: &quot;world&quot;");
-    expect(text).toContain("recipient: &quot;md&quot;");
+    expect(text).toContain("recipient: &quot;Peruse&quot;");
     expect(body).not.toContain("Previous working tree content");
     expect(body).not.toContain("Updated working tree content");
   });

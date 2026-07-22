@@ -35,7 +35,7 @@ export function parseConfig(
   env: Readonly<Record<string, string | undefined>> = Bun.env,
   cwd = process.cwd(),
 ): Config {
-  let host = env.MD_HOST ?? "127.0.0.1";
+  let host = env.PERUSE_HOST ?? "127.0.0.1";
   let port = parsePort(env.PORT ?? "8080");
   let cssPath: string | undefined;
   let help = false;
@@ -100,7 +100,7 @@ export function parseConfig(
   return config;
 }
 
-export const usage = `Usage: md [options] [directory]
+export const usage = `Usage: peruse [options] [directory]
 
 Options:
   -p, --port <port>  Port to listen on (default: 8080 or PORT)

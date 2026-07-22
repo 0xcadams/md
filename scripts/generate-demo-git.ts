@@ -137,7 +137,7 @@ async function createRepository(root: string): Promise<void> {
   await git(root, ["add", "."]);
   await git(root, [
     "-c",
-    "user.name=md demo",
+    "user.name=Peruse demo",
     "-c",
     "user.email=demo@example.com",
     "commit",
@@ -153,7 +153,7 @@ async function createRepository(root: string): Promise<void> {
 }
 
 export async function generateDemoGitSnapshot(): Promise<DemoGitSnapshotData> {
-  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "md-demo-git-"));
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "peruse-demo-git-"));
   try {
     await createRepository(temporaryRoot);
     const repository = await GitRepository.open(temporaryRoot);

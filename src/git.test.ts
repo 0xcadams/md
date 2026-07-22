@@ -9,7 +9,7 @@ const temporaryDirectories: string[] = [];
 const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
 
 async function temporaryDirectory(): Promise<string> {
-  const directory = await mkdtemp(path.join(tmpdir(), "md-git-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "peruse-git-"));
   temporaryDirectories.push(directory);
   return directory;
 }
@@ -39,9 +39,9 @@ async function commitAll(root: string, message: string): Promise<void> {
   await git(root, ["add", "."]);
   await git(root, [
     "-c",
-    "user.name=md test",
+    "user.name=Peruse test",
     "-c",
-    "user.email=md@example.com",
+    "user.email=peruse@example.com",
     "commit",
     "-m",
     message,
@@ -118,9 +118,9 @@ describe("GitRepository", () => {
     await git(root, ["add", "."]);
     await git(root, [
       "-c",
-      "user.name=md test",
+      "user.name=Peruse test",
       "-c",
-      "user.email=md@example.com",
+      "user.email=peruse@example.com",
       "commit",
       "-m",
       "initial commit",
@@ -153,7 +153,7 @@ describe("GitRepository", () => {
 
     expect(info?.branch).toBe("main");
     expect(info?.branchCount).toBe(2);
-    expect(info?.commit?.author).toBe("md test");
+    expect(info?.commit?.author).toBe("Peruse test");
     expect(info?.detached).toBe(false);
     expect(info?.commit?.summary).toBe("initial commit");
     expect(info?.commitCount).toBe(1);

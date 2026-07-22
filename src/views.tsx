@@ -262,14 +262,14 @@ export function Layout(props: PropsWithChildren<LayoutProps>) {
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <meta name="color-scheme" content={props.theme.appearance} />
           <title>{props.title}</title>
-          <link rel="icon" href="/__md/assets/logo.svg" type="image/svg+xml" />
-          <link rel="stylesheet" href="/__md/assets/styles.css?v=2" />
+          <link rel="icon" href="/__peruse/assets/logo.svg" type="image/svg+xml" />
+          <link rel="stylesheet" href="/__peruse/assets/styles.css?v=2" />
         </head>
         <body>
           <header class="site-header">
             <div class="site-header-inner">
-              <a class="brand" href="/" aria-label="md home">
-                <img src="/__md/assets/logo.svg" alt="" width="32" height="32" />
+              <a class="brand" href="/" aria-label="Peruse home">
+                <img src="/__peruse/assets/logo.svg" alt="" width="32" height="32" />
               </a>
               <ThemeSelector theme={props.theme} />
             </div>
@@ -282,7 +282,7 @@ export function Layout(props: PropsWithChildren<LayoutProps>) {
             />
             {props.children}
           </main>
-          <script type="module" src="/__md/assets/app.js" />
+          <script type="module" src="/__peruse/assets/app.js" />
         </body>
       </html>
     </>
@@ -588,7 +588,7 @@ export function DirectoryPage(props: {
       : githubPage(repositoryUrl, "commits", ref);
   return (
     <Layout
-      title={`${title} - md`}
+      title={`${title} - Peruse`}
       rootName={props.rootName}
       segments={props.segments}
       theme={props.theme}

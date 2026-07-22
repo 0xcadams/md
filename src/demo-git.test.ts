@@ -17,7 +17,7 @@ describe("generated demo Git data", () => {
     expect(files.get("example.ts")).toContain("-  return `${message}, ${recipient}.`;");
     expect(files.get("example.ts")).toContain("+  return `${message}, ${recipient}!`;");
     expect(files.get("example.ts")).toContain('recipient: "world"');
-    expect(files.get("example.ts")).toContain('recipient: "md"');
+    expect(files.get("example.ts")).toContain('recipient: "Peruse"');
     expect(files.get(".hidden/workflow.yaml")).toContain(
       '+  file: "demo-files/.hidden/workflow.yaml"',
     );

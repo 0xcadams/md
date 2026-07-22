@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "md",
+      "name": "peruse",
       "dependencies": {
         "@shikijs/rehype": "4.3.1",
         "hono": "4.12.30",
