@@ -9,7 +9,9 @@ describe("Vercel entrypoint", () => {
 
     expect(response.status).toBe(200);
     expect(body).toContain("Directory contents");
-    expect(body).toContain("Welcome to the <strong>Peruse</strong> demo!");
+    expect(body).toContain(
+      "This workspace shows how Peruse renders Markdown, source code, and Git changes.",
+    );
     expect(body).toContain('href="/example.ts"');
     expect(body).toContain('class="repo-toolbar"');
     expect(body).toContain('title="Current branch"');
