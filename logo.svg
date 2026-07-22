@@ -1,13 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" aria-labelledby="title" viewBox="0 0 32 32" role="img">
   <title id="title">Peruse</title>
-  <defs>
-    <clipPath id="page-corner">
-      <path d="M9.5 12.5 16 6h8v20H9.5Z" />
-    </clipPath>
-  </defs>
-  <rect x="1" y="1" width="30" height="30" rx="7" fill="#20231f" />
-  <circle cx="16" cy="13" r="7" fill="#f2a93b" clip-path="url(#page-corner)" />
-  <path fill="#f2a93b" d="M9.5 12.5h5V26h-5Z" />
-  <path fill="#ffd27a" d="M9.5 12.5H16V6Z" />
-  <circle cx="16" cy="13" r="3" fill="#20231f" />
+  <rect width="30" height="30" x="1" y="1" fill="#20231f" rx="7"/>
+  <path fill="#f2a93b" d="M9.222 24V9.25L12.472 6h3.454q2.056 0 3.662.859t2.521 2.352q.916 1.493.916 3.437t-.916 3.422q-.915 1.479-2.521 2.324t-3.662.845h-1.634V24Zm5.07-9.211h1.127q2.423 0 2.423-2.141 0-2.197-2.423-2.197h-1.127Z"/>
+  <path fill="#ffd27a" d="M9.222 9.25h3.25V6Z"/>
 </svg>
