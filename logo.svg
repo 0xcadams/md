@@ -1,10 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-labelledby="title">
   <title id="title">Peruse</title>
+  <defs>
+    <clipPath id="page-corner">
+      <path d="M9.5 12.5 16 6h8v20H9.5Z" />
+    </clipPath>
+  </defs>
   <rect x="1" y="1" width="30" height="30" rx="7" fill="#20231f" />
-  <path
-    fill="#f2a93b"
-    d="M8.5 6h8.75l6.25 6.25v4.25a6.75 6.75 0 0 1-6.75 6.75H14V26H8.5V6Z"
-  />
-  <path fill="#ffd27a" d="M17.25 6v6.25h6.25L17.25 6Z" />
-  <path fill="#20231f" d="M14 13.75h2.5a2.75 2.75 0 1 1 0 5.5H14v-5.5Z" />
+  <circle cx="16" cy="13" r="7" fill="#f2a93b" clip-path="url(#page-corner)" />
+  <path fill="#f2a93b" d="M9.5 12.5h5V26h-5Z" />
+  <path fill="#ffd27a" d="M9.5 12.5H16V6Z" />
+  <circle cx="16" cy="13" r="3" fill="#20231f" />
 </svg>
